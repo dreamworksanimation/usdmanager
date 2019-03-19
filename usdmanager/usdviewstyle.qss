@@ -521,3 +521,11 @@ QToolBar {
   border-bottom: 1px solid rgb(35, 35, 35); /* Defining any border fixes an issue with background-color not working */
   padding: 1px 1px 1px 2px;
 }
+
+QLineEdit#findBar {
+    background-color:inherit;
+}
+
+AddressBar {
+    background-color: rgb(41, 41, 41);
+}

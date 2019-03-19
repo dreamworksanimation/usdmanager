@@ -24,6 +24,7 @@ import subprocess
 import tempfile
 from contextlib import contextmanager
 from glob import glob
+from pkg_resources import resource_filename
 
 import Qt
 from Qt import QtCore, QtWidgets
@@ -49,12 +50,6 @@ except ImportError:
     resolver = None
 
 
-class DoesNotExist(Exception):
-    """ Custom exception to raise when a file does not exist.
-    """
-    pass
-
-
 def expandPath(path, parentPath=None, sdf_format_args=None):
     """ Expand and normalize a path that may have variables in it.
 
@@ -70,8 +65,6 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
         Normalized path with variables expanded.
     :Rtype:
         `str`
-    :Raises DoesNotExist:
-        If the resolver resolves to a blank string, indicating the file does not exist.
     """
     if resolver is not None:
         try:
@@ -85,7 +78,6 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
         else:
             if resolved:
                 return resolved
-            raise DoesNotExist()
     
     # Return this best-attempt if all else fails.
     return os.path.expandvars(os.path.expanduser(os.path.normpath(path)))
@@ -104,7 +96,9 @@ def findModules(subdir):
         `list`
     """
     modules = []
-    for f in glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), subdir, "*.py")):
+    pluginPath = resource_filename(__name__, subdir)
+    logger.info("Searching for *.py plugins in {}".format(pluginPath))
+    for f in glob(os.path.join(pluginPath, "*.py")):
         moduleName = os.path.splitext(os.path.basename(f))[0]
         if moduleName.startswith('_') or moduleName.startswith('~'):
             continue
@@ -294,7 +288,7 @@ def isUsdFile(path):
     return isUsdExt(os.path.splitext(path)[1])
 
 
-def loadUiType(uiFile, sourceFile=__file__, className="DefaultWidgetClass"):
+def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
     """ Used to define a custom widget's class.
     
     :Parameters:
@@ -316,8 +310,12 @@ def loadUiType(uiFile, sourceFile=__file__, className="DefaultWidgetClass"):
     from Qt import QtWidgets
     
     if not os.path.exists(uiFile) and not os.path.isabs(uiFile):
-        sourceDir = os.path.dirname(sourceFile)
-        uiFile = os.path.join(sourceDir, uiFile)
+        if sourceFile is None:
+            uiFile = resource_filename(__name__, uiFile)
+            sourceDir = os.path.dirname(uiFile)
+        else:
+            sourceDir = os.path.dirname(sourceFile)
+            uiFile = os.path.join(sourceDir, uiFile)
     else:
         sourceDir = os.path.dirname(uiFile)
     
@@ -342,7 +340,7 @@ def loadUiType(uiFile, sourceFile=__file__, className="DefaultWidgetClass"):
     return type("{}Base".format(className), (form_class, base_class), {})
 
 
-def loadUiWidget(path, parent=None, source_path=__file__):
+def loadUiWidget(path, parent=None, source_path=None):
     """ Load a Qt Designer .ui file and return an instance of the user interface
     
     :Parameters:
@@ -361,7 +359,10 @@ def loadUiWidget(path, parent=None, source_path=__file__):
     
     if not os.path.exists(path) and not os.path.isabs(path):
         # Assume the .ui file lives in this directory.
-        path = os.path.join(os.path.dirname(os.path.realpath(source_path)), path)
+        if source_path is None:
+            path = resource_filename(__name__, path)
+        else:
+            path = os.path.join(os.path.dirname(os.path.realpath(source_path)), path)
     ui = QtCompat.loadUi(path, parent)
     if parent:
         #ui.setParent(parent)

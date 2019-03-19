@@ -53,6 +53,7 @@ import traceback
 from collections import defaultdict
 from contextlib import contextmanager
 from glob import glob
+from pkg_resources import resource_filename
 
 # To lock down or prefer a specific Qt version:
 #if "QT_PREFERRED_BINDING" not in os.environ:
@@ -81,7 +82,6 @@ from .include_panel import IncludePanel
 from .plugins import images_rc as plugins_rc
 from .plugins import Plugin
 from .preferences_dialog import PreferencesDialog
-from .utils import DoesNotExist
 
 
 # Set up logging.
@@ -247,9 +247,10 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         
         # Set usdview stylesheet.
         if self.app.opts['dark']:
-            with open(os.path.join(self.app.resourceDir, 'usdviewstyle.qss')) as f:
+            stylesheet = resource_filename(__name__, "usdviewstyle.qss")
+            with open(stylesheet) as f:
                 # Qt style sheet accepts only forward slashes as path separators.
-                sheetString = f.read().replace('RESOURCE_DIR', self.app.resourceDir.replace("\\", "/"))
+                sheetString = f.read().replace('RESOURCE_DIR', os.path.dirname(stylesheet).replace("\\", "/"))
             self.setStyleSheet(sheetString)
             
             # Change some more stuff that the stylesheet doesn't catch.
@@ -1586,7 +1587,7 @@ span.badLink {{color:#F33}}
         if cursor.hasSelection():
             # Found phrase. Set cursor and formatting.
             currTextWidget.setTextCursor(cursor)
-            self.findBar.setStyleSheet("QLineEdit{background:none}")
+            self.findBar.setStyleSheet("QLineEdit{{background:{}}}".format("inherit" if self.app.opts['dark'] else "none"))
             if loop:
                 # Didn't just loop through the document, so hide any messages.
                 self.labelFindPixmap.setVisible(False)
@@ -1981,7 +1982,7 @@ span.badLink {{color:#F33}}
             self.buttonHighlightAll.setEnabled(False)
             if self.buttonHighlightAll.isChecked():
                 self.findHighlightAll()
-            self.findBar.setStyleSheet("QLineEdit{background:none}")
+            self.findBar.setStyleSheet("QLineEdit{{background:{}}}".format("inherit" if self.app.opts['dark'] else "none"))
             self.labelFindPixmap.setVisible(False)
             self.labelFindStatus.setVisible(False)
     
@@ -2912,8 +2913,8 @@ span.badLink {{color:#F33}}
                             queryStr = "?{}".format("&".join(queryParams)) if queryParams else ""
                             htmlLink = '<a title="Multiple files may exist" class="mayNotExist" href="{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
                         else:
-                            raise DoesNotExist
-                    except DoesNotExist:
+                            raise ValueError
+                    except ValueError:
                         # File doesn't exist or path cannot be resolved.
                         # Color it red, but don't make it an actual link.
                         htmlLink = '<span title="File not found" class="tooltip badLink">{}</span>'.format(linkPath)
@@ -4164,8 +4165,7 @@ class App(QtCore.QObject):
         self.config = Settings()
         
         # App settings.
-        self.resourceDir = os.path.dirname(os.path.realpath(__file__)) + "/"
-        appConfigPath = os.path.join(self.resourceDir, "config.json")
+        appConfigPath = resource_filename(__name__, "config.json")
         try:
             logger.info("Loading app config from {}".format(appConfigPath))
             with open(appConfigPath) as f:

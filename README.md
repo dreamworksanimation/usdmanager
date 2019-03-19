@@ -37,8 +37,8 @@ Installing USD Manager
 Requirements
 ------------
 
-usdmanager requires Python 2, [Qt.py](https://github.com/mottosso/Qt.py) (can be handled by setup.py), and one of
-Qt.py's 4 supported Qt bindings, which will need to be installed separately.
+usdmanager requires Python 2, [Qt.py](https://github.com/mottosso/Qt.py) and [setuptools](https://github.com/pypa/setuptools)
+(can be handled by setup.py), and one of Qt.py's 4 supported Qt bindings, which will need to be installed separately.
 
 Install with setup.py
 ---------------------
@@ -93,7 +93,7 @@ Contributing
 ============
 
 Developers who wish to contribute code to be considered for inclusion in the USD Manager distribution must first
-complete the [Contributor License Agreement](http://www.dreamworksanimation.com/usdmanager/USDManagerContributorLicenseAgreement.pdf)
+complete the [Contributor License Agreement](http://www.usdmanager.org/USDManagerContributorLicenseAgreement.pdf)
 and submit it to DreamWorks (directions in the CLA). We prefer code submissions in the form of pull requests to this
 repository.
 

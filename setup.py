@@ -63,7 +63,8 @@ setup(
     data_files=[("usdmanager", ["usdmanager/usdviewstyle.qss"])],
     scripts=glob("scripts/*"),
     install_requires=[
-        "Qt.py>=1.1"
+        "Qt.py>=1.1",
+        "setuptools",  # For pkg_resources
     ],
     setup_requires=[
         "setuptools>=2.2",
