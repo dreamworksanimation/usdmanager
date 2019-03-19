@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>463</width>
+    <height>519</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Preferences</string>
+  </property>
+  <property name="windowIcon">
+   <iconset theme="preferences-system">
+    <normaloff/>
+   </iconset>
+  </property>
+  <property name="sizeGripEnabled">
+   <bool>true</bool>
+  </property>
+  <property name="modal">
+   <bool>true</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tab_General">
+      <attribute name="title">
+       <string>General</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="layoutGeneral">
+       <item>
+        <widget class="QCheckBox" name="checkBox_parseLinks">
+         <property name="toolTip">
+          <string>Parse files for links to other files. Disable for faster loading of larger files</string>
+         </property>
+         <property name="text">
+          <string>Parse links</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_newTab">
+         <property name="toolTip">
+          <string>Open links in new tabs instead of the current tab</string>
+         </property>
+         <property name="text">
+          <string>Open links in new tabs</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_syntaxHighlighting">
+         <property name="toolTip">
+          <string>Enable syntax highlighting. Disable for faster loading of larger files</string>
+         </property>
+         <property name="text">
+          <string>Enable syntax highlighting</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_teletypeConversion">
+         <property name="toolTip">
+          <string>Display teletype character codes properly in browse mode. Disable for faster loading of larger files</string>
+         </property>
+         <property name="text">
+          <string>Display teletype colors</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_lineNumbers">
+         <property name="text">
+          <string>Show line numbers</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_showAllMessages">
+         <property name="text">
+          <string>Display success messages</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_showAllMessages">
+         <property name="text">
+          <string>     – Warnings and errors will always be displayed.</string>
+         </property>
+         <property name="buddy">
+          <cstring>checkBox_showAllMessages</cstring>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_showHiddenFiles">
+         <property name="toolTip">
+          <string>Show hidden files (on Unix, files starting with a &quot;.&quot;) in file dialogs</string>
+         </property>
+         <property name="text">
+          <string>Show hidden files</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_autoCompleteAddressBar">
+         <property name="text">
+          <string>Auto complete paths in address bar</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="useSpacesLayout">
+         <item>
+          <widget class="QCheckBox" name="useSpacesCheckBox">
+           <property name="toolTip">
+            <string>Insert spaces instead of a tab character when the Tab key is pressed</string>
+           </property>
+           <property name="text">
+            <string>Use spaces instead of tabs</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="useSpacesLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>The number of spaces equivalent to one tab stop</string>
+           </property>
+           <property name="text">
+            <string>Tab spacing</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="useSpacesSpinBox">
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>96</number>
+           </property>
+           <property name="value">
+            <number>4</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelTextEditor">
+           <property name="text">
+            <string>Text editor:</string>
+           </property>
+           <property name="buddy">
+            <cstring>lineEditTextEditor</cstring>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="lineEditTextEditor"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelDiffTool">
+           <property name="text">
+            <string>Diff tool:</string>
+           </property>
+           <property name="buddy">
+            <cstring>lineEditDiffTool</cstring>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="lineEditDiffTool"/>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="fontLayout">
+         <item>
+          <widget class="QLabel" name="labelFont">
+           <property name="text">
+            <string>Document font: </string>
+           </property>
+           <property name="buddy">
+            <cstring>buttonFont</cstring>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="buttonFont">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Select Font</string>
+           </property>
+           <property name="icon">
+            <iconset theme="preferences-desktop-font">
+             <normaloff/>
+            </iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_Programs">
+      <attribute name="title">
+       <string>Programs</string>
+      </attribute>
+      <layout class="QGridLayout" name="layoutPrograms">
+       <item row="9" column="0" colspan="2">
+        <widget class="QScrollArea" name="scrollArea">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidget">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>417</width>
+            <height>260</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="scrollAreaLayout">
+           <item row="2" column="0">
+            <widget class="QPushButton" name="buttonNewProg">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>Add another program.</string>
+             </property>
+             <property name="text">
+              <string>&amp;New</string>
+             </property>
+             <property name="icon">
+              <iconset theme="list-add">
+               <normaloff/>
+              </iconset>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <spacer name="verticalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="0" column="0">
+            <widget class="QWidget" name="progWidget" native="true"/>
+           </item>
+           <item row="0" column="1">
+            <widget class="QWidget" name="extWidget" native="true"/>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QLabel" name="labelExtExample">
+         <property name="toolTip">
+          <string>Comma-separated list. Spaces are optional.</string>
+         </property>
+         <property name="text">
+          <string>    .exr, .tx, .tif, .tiff</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
+        <widget class="QLabel" name="labelProgExample">
+         <property name="toolTip">
+          <string>Command and any additional options.</string>
+         </property>
+         <property name="text">
+          <string>    Example: RV</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QLabel" name="labelExt">
+         <property name="toolTip">
+          <string>Comma-separated list. Spaces are optional.</string>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">font-weight:bold;</string>
+         </property>
+         <property name="text">
+          <string>Extension(s):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="labelProg">
+         <property name="toolTip">
+          <string>Command and any additional options.</string>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">font-weight:bold;</string>
+         </property>
+         <property name="text">
+          <string>Program:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QLineEdit" name="lineEdit"/>
+       </item>
+       <item row="0" column="0" colspan="2">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Extensions that should open in app (ex: .usd, .txt, .xml):</string>
+         </property>
+         <property name="buddy">
+          <cstring>lineEdit</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="Line" name="line">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QLabel" name="label_AdtlExt">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">font: 75 11pt &quot;Sans Serif&quot;; font-weight: bold;</string>
+           </property>
+           <property name="text">
+            <string>File Associations:</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::RestoreDefaults</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>checkBox_parseLinks</tabstop>
+  <tabstop>checkBox_newTab</tabstop>
+  <tabstop>checkBox_syntaxHighlighting</tabstop>
+  <tabstop>checkBox_teletypeConversion</tabstop>
+  <tabstop>checkBox_lineNumbers</tabstop>
+  <tabstop>checkBox_showAllMessages</tabstop>
+  <tabstop>checkBox_showHiddenFiles</tabstop>
+  <tabstop>checkBox_autoCompleteAddressBar</tabstop>
+  <tabstop>lineEditTextEditor</tabstop>
+  <tabstop>lineEditDiffTool</tabstop>
+  <tabstop>buttonFont</tabstop>
+  <tabstop>lineEdit</tabstop>
+  <tabstop>scrollArea</tabstop>
+  <tabstop>buttonNewProg</tabstop>
+  <tabstop>buttonBox</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>Dialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>325</x>
+     <y>402</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

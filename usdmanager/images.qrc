@@ -1,0 +1,9 @@
+<RCC>
+  <qresource prefix="images">
+    <file>images/lock.png</file>
+    <file>images/findNext.png</file>
+    <file>images/findPrev.png</file>
+    <file>images/logo.png</file>
+    <file>images/usd.png</file>
+  </qresource>
+</RCC>
