@@ -1,5 +1,7 @@
 ![USD Manager](docs/_static/logo_512.png?raw=true "USD Manager")
 
+[![Documentation Status](https://readthedocs.org/projects/usdmanager/badge/?version=stable)](https://usdmanager.readthedocs.io/en/stable/?badge=stable)
+
 [Website](http://www.usdmanager.org)
 
 USD Manager is an open-source, python-based Qt tool for browsing, managing, and editing text-based files like USD,
