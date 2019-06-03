@@ -767,7 +767,7 @@ span.badLink {{color:#F33}}
         # File Menu
         self.actionNewWindow.triggered.connect(self.newWindow)
         self.actionNewTab.triggered.connect(self.newTab)
-        self.actionOpen.triggered.connect(self.openFileDialog)
+        self.actionOpen.triggered.connect(self.openFileDialogToCurrentPath)
         self.actionSave.triggered.connect(self.saveTab)
         self.actionSaveAs.triggered.connect(self.saveFileAs)
         self.actionPrintPreview.triggered.connect(self.printPreview)
@@ -930,11 +930,13 @@ span.badLink {{color:#F33}}
         tab.textEditor.copyAvailable.disconnect(self.actionCopy.setEnabled)
         tab.textEditor.copyAvailable.disconnect(self.actionCut.setEnabled)
     
-    @Slot()
-    def openFileDialog(self):
+    def openFileDialog(self, path=None):
         """ Show the Open File dialog and open any selected files.
+        
+        :Parameters:
+            path : `str` | None
+                File path to pre-select on open
         """
-        path = self.currTab.getCurrentPath()
         startFilter = FILE_FILTER[self.currTab.fileFormat]
         fd = FileDialog(self, "Open File(s)", self.lastOpenFileDir, FILE_FILTER, startFilter, self.preferences['showHiddenFiles'])
         fd.setFileMode(fd.ExistingFiles)
@@ -945,6 +947,13 @@ span.badLink {{color:#F33}}
             if paths:
                 self.lastOpenFileDir = QtCore.QFileInfo(paths[0]).absoluteDir().path()
                 self.setSources(paths)
+    
+    @Slot()
+    def openFileDialogToCurrentPath(self):
+        """ Show the Open File dialog and open any selected files,
+        pre-selecting the current file (if any).
+        """
+        self.openFileDialog(self.currTab.getCurrentPath())
     
     def saveFile(self, filePath, fileFormat=FILE_FORMAT_NONE, _checkUsd=True):
         """ Save the current file as the given filePath.
@@ -2694,6 +2703,7 @@ span.badLink {{color:#F33}}
                 if not fileInfo.exists():
                     return self.setSourceFinish(False, "The file could not be found:\n{}".format(fileStr))
                 if fileInfo.isDir():
+                    logger.debug("Set source to directory. Opening file dialog to {}".format(fileStr))
                     status = self.setSourceFinish()
                     # Instead of failing with a message that you can't open a directory, open the "Open File" dialog to
                     # this directory instead.

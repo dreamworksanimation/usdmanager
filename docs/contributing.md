@@ -38,13 +38,11 @@ one. Each commit should pass tests without requiring further commits.
 3. Build a local copy
 ```
 python setup.py install --user
+pip install -r docs/requirements.txt
 ```
 4. Write code, following the [style guide](#style-guide).
 5. Test it
-6. Update any manual documentation pages (like this one) and run sphinx-apidoc with the following command:
-```
-sphinx-apidoc -o ./docs/api/ -e -P -f ./usdmanager/
-```
+6. Update any manual documentation pages (like this one)
 7. Test that the documentation builds without errors with:
 ```
 sphinx-build -b html docs/ docs/_build

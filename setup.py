@@ -68,8 +68,6 @@ setup(
     ],
     setup_requires=[
         "setuptools>=2.2",
-        "Sphinx>=1.8.5",
-        "recommonmark>=0.5.0",
     ],
     tests_require=[],
     dependency_links=[],

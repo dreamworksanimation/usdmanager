@@ -1,0 +1,14 @@
+# .readthedocs.yml
+# Use of v1 over v2 is intentional for maximum rtd compatibility
+
+formats: []  # Don't build htmlzip, pdf or epub
+
+build:
+  image: latest
+
+requirements_file: docs/requirements.txt
+
+python:
+  version: 2.7
+  setup_py_install: true
+  pip_install: false

@@ -8,8 +8,6 @@
  */
 
 QWidget {
-    /* font */
-    font: 10pt "Gotham Rounded";
     color: rgb(227, 227, 227);
 
     /* brownish background color */
@@ -244,11 +242,6 @@ QTableView::item:selected {
 QTableView, QTableWidget, QTreeWidget {
     background: rgb(55, 55, 55);
     alternate-background-color: rgb(59, 59, 59);
-}
-
-/* Font setting for the table widget */
-QTableWidget{
-    font: 25 10pt "Gotham Rounded";
 }
 
 /* bump to the right to hide the extra line */
