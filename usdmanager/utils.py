@@ -83,6 +83,44 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
     return os.path.expandvars(os.path.expanduser(os.path.normpath(path)))
 
 
+def expandUrl(path, parentPath=None):
+    """ Expand and normalize a URL that may have variables in it and a query string after it.
+
+    :Parameters:
+        path : `str`
+            File path
+        parentPath : `str` | None
+            Parent file path this file is defined in relation to.
+            Helps with asset resolution.
+    :Returns:
+        Normalized path with variables expanded.
+    :Rtype:
+        `str`
+    """
+    sdf_format_args = {}
+    if "?" in path:
+        sdf_format_args.update(sdfQuery(QtCore.QUrl(path)))
+        path, query = path.split("?", 1)
+        query = "?" + query
+    else:
+        query = ""
+    return QtCore.QUrl(os.path.abspath(expandPath(path, parentPath, sdf_format_args)) + query)
+
+
+def escapePath(path):
+    """ Wrap path in quotation marks on Windows.
+    
+    :Parameters:
+        path : `str`
+            File path
+    :Returns:
+        Escaped path
+    :Rtype:
+        `str`
+    """
+    return '"{}"'.format(path) if os.name == "nt" else path
+
+
 def findModules(subdir):
     """ Find and import all modules in a subdirectory of this project.
     Ignores any files starting with an underscore or tilde.

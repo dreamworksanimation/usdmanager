@@ -119,7 +119,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
     Links to multiple files are colored yellow. Files may or may not exist.
     Links that cannot be resolved or confirmed as valid files are colored red.
     
-    Ideas:
+    Ideas (in no particular order):
 
     - Better usdz support (https://graphics.pixar.com/usd/docs/Usdz-File-Format-Specification.html)
 
@@ -156,7 +156,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
 
     - Remember scroll position per file so going back in history jumps you to
       approximately where you were before.
-    
+
     Known issues:
 
         - AddressBar file completer has problems occasionally.
@@ -973,7 +973,7 @@ span.badLink {{color:#F33}}
         logger.debug("Checking file status")
         path = QtCore.QFile(filePath)
         if path.exists() and not QtCore.QFileInfo(path).isWritable():
-            self.showCriticalMessage("The file is not writable.\n{}".format(filePath), "Save File")
+            self.showCriticalMessage("The file is not writable.\n{}".format(filePath), title="Save File")
             return False
         logger.debug("Writing file")
         self.setOverrideCursor()
@@ -1452,10 +1452,16 @@ span.badLink {{color:#F33}}
     @Slot()
     def toggleEdit(self):
         """ Switch between Browse mode and Edit mode.
+        
+        :Returns:
+            True if we switched modes; otherwise, False.
+            This only returns False if we were in Edit mode and the user cancelled due to unsaved changes.
+        :Rtype:
+            `bool`
         """
         # Don't change between browse and edit mode if dirty. Saves if needed.
         if not self.dirtySave():
-            return
+            return False
         
         # Toggle edit mode
         self.currTab.inEditMode = not self.currTab.inEditMode
@@ -1486,6 +1492,7 @@ span.badLink {{color:#F33}}
         
         self.updateEditButtons()
         self.editModeChanged.emit(self.currTab.inEditMode)
+        return True
     
     @Slot()
     def undo(self):
@@ -2118,6 +2125,9 @@ span.badLink {{color:#F33}}
     def browserBack(self):
         """ Go back one step in history for the current tab.
         """
+        # Check if there are any changes to be saved before we modify the history.
+        if not self.dirtySave():
+            return
         self.currTab.historyIndex -= 1
         self.currTab.updateBreadcrumb()
         self.setSource(self.currTab.getCurrentUrl(), isNewFile=False)
@@ -2126,6 +2136,9 @@ span.badLink {{color:#F33}}
     def browserForward(self):
         """ Go forward one step in history for the current tab.
         """
+        # Check if there are any changes to be saved before we modify the history.
+        if not self.dirtySave():
+            return
         self.currTab.historyIndex += 1
         self.currTab.updateBreadcrumb()
         self.setSource(self.currTab.getCurrentUrl(), isNewFile=False)
@@ -2295,181 +2308,40 @@ span.badLink {{color:#F33}}
     @Slot()
     def commentTextRequest(self):
         """ Slot called by the Comment action. """
-        self.commentOutText(*self.getCommentStrings())
-
+        self.currTab.getCurrentTextWidget().commentOutText(*self.getCommentStrings())
+    
     @Slot()
     def uncommentTextRequest(self):
         """ Slot called by the Uncomment action. """
-        self.uncommentText(*self.getCommentStrings())
-    
-    def commentOutText(self, commentStart="#", commentEnd=""):
-        """ Comment out selected lines.
-        
-        TODO: For languages that use a different syntax for multi-line comments,
-        use that when multiple lines are selected?
-        
-        :Parameters:
-            commentStart : `str`
-                String used for commenting out lines.
-            commentEnd : `str`
-                If the comment can be applied to multiple lines,
-                this is the string marking the end of the comment.
-        """
-        textWidget = self.currTab.getCurrentTextWidget()
-        cursor = textWidget.textCursor()
-        start = cursor.selectionStart()
-        end = cursor.selectionEnd()
-        commentLen = len(commentStart)
-        cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
-        cursor.beginEditBlock()
-        
-        if not commentEnd:
-            # Modify all blocks between selectionStart and selectionEnd
-            while cursor.position() <= end and not cursor.atEnd():
-                cursor.insertText(commentStart)
-                # For every character we insert, increment the end position.
-                end += commentLen
-                prevBlock = cursor.blockNumber()
-                cursor.movePosition(cursor.NextBlock)
-                
-                # I think I have a bug in my code if I have to do this.
-                if prevBlock == cursor.blockNumber():
-                    break
-        else:
-            # Only modify the beginning and end lines since this can
-            # be a multiple-line comment.
-            cursor.insertText(commentStart)
-            cursor.setPosition(end)
-            cursor.movePosition(cursor.EndOfBlock)
-            cursor.insertText(commentEnd)
-        cursor.endEditBlock()
-    
-    def uncommentText(self, commentStart="#", commentEnd=""):
-        """ Uncomment selected lines.
-        
-        :Parameters:
-            commentStart : `str`
-                String used for commenting out lines.
-            commentEnd : `str`
-                If the comment can be applied to multiple lines,
-                this is the string marking the end of the comment.
-        """
-        textWidget = self.currTab.getCurrentTextWidget()
-        cursor = textWidget.textCursor()
-        start = cursor.selectionStart()
-        end = cursor.selectionEnd()
-        commentLen = len(commentStart)
-        cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
-        cursor.beginEditBlock()
-        if not commentEnd:
-            # Modify all blocks between selectionStart and selectionEnd
-            while cursor.position() <= end and not cursor.atEnd():
-                block = cursor.block()
-                # Select the number of characters used in the comment string.
-                for i in range(len(commentStart)):
-                    cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
-                # If the selection is all on the same line and matches the comment string, remove it.
-                if block.contains(cursor.selectionEnd()) and cursor.selectedText() == commentStart:
-                    cursor.deleteChar()
-                    end -= commentLen
-                prevBlock = cursor.blockNumber()
-                cursor.movePosition(cursor.NextBlock)
-                if prevBlock == cursor.blockNumber():
-                    break
-        else:
-            # Remove the beginning comment string.
-            # Do we only want to do this if there's also an end comment string in the selection?
-            # We probably also want to remove the comments if there is any whitespace before or after it.
-            # This logic may not be completely right when some comment symbols are already in the selection.
-            block = cursor.block()
-            # Select the number of characters used in the comment string.
-            for i in range(len(commentStart)):
-                cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
-            # If the selection is all on the same line and matches the comment string, remove it.
-            if block.contains(cursor.selectionEnd()) and cursor.selectedText() == commentStart:
-                cursor.deleteChar()
-            # Remove the end comment string.
-            cursor.setPosition(end - len(commentStart))
-            block = cursor.block()
-            cursor.movePosition(cursor.EndOfBlock)
-            for i in range(len(commentEnd)):
-                cursor.movePosition(cursor.PreviousCharacter, cursor.KeepAnchor)
-            if block.contains(cursor.selectionStart()) and cursor.selectedText() == commentEnd:
-                cursor.deleteChar()
-        cursor.endEditBlock()
+        self.currTab.getCurrentTextWidget().uncommentText(*self.getCommentStrings())
     
     @Slot()
-    def indentText(self, numSpaces=4):
-        """ Indent selected lines by the given number of spaces.
-        
-        :Parameters:
-            numSpaces : `int`
-                Number of spaces used for indenting.
+    def indentText(self):
+        """ Indent selected lines by one tab stop.
         """
-        textWidget = self.currTab.getCurrentTextWidget()
-        cursor = textWidget.textCursor()
-        start = cursor.selectionStart()
-        end = cursor.selectionEnd()
-        cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
-        cursor.beginEditBlock()
-        # Modify all blocks between selectionStart and selectionEnd
-        while cursor.position() <= end and not cursor.atEnd():
-            for i in range(numSpaces):
-                cursor.insertText(" ")
-            # Increment end by the number of characters we inserted.
-            end += numSpaces
-            prevBlock = cursor.blockNumber()
-            cursor.movePosition(cursor.NextBlock)
-            if prevBlock == cursor.blockNumber():
-                break
-        cursor.endEditBlock()
+        self.currTab.getCurrentTextWidget().indentText()
     
     @Slot()
-    def unindentText(self, numSpaces=4):
-        """ Un-indent selected lines by the given number of spaces.
-        
-        :Parameters:
-            numSpaces : `int`
-                Number of spaces used for indenting.
+    def unindentText(self):
+        """ Un-indent selected lines by one tab stop.
         """
-        textWidget = self.currTab.getCurrentTextWidget()
-        cursor = textWidget.textCursor()
-        start = cursor.selectionStart()
-        end = cursor.selectionEnd()
-        cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
-        cursor.beginEditBlock()
-        # Modify all blocks between selectionStart and selectionEnd
-        while cursor.position() <= end and not cursor.atEnd():
-            for i in range(numSpaces):
-                cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
-                if cursor.selectedText() == " ":
-                    cursor.deleteChar()
-                    end -= 1
-                else:
-                    break
-            prevBlock = cursor.blockNumber()
-            cursor.movePosition(cursor.NextBlock)
-            if prevBlock == cursor.blockNumber():
-                break
-        cursor.endEditBlock()
+        self.currTab.getCurrentTextWidget().unindentText()
     
     @Slot()
     def launchTextEditor(self):
         """ Launch the current file in a separate text editing application.
         """
-        args = shlex.split(self.preferences['textEditor']) + [self.currTab.getCurrentPath()]
+        path = utils.escapePath(self.currTab.getCurrentPath())
+        args = shlex.split(self.preferences['textEditor']) + [path]
         self.launchProcess(args)
     
     @Slot()
     def launchUsdView(self):
         """ Launch the current file in usdview.
         """
-        cmd = "{} {}".format(self.app.appConfig.get("usdview", "usdview"), self.currTab.getCurrentPath())
-        self.launchProcess(cmd, shell=True)
+        path = utils.escapePath(self.currTab.getCurrentPath())
+        args = [self.app.appConfig.get("usdview", "usdview"), path]
+        self.launchProcess(args)
     
     @Slot()
     def launchProgramOfChoice(self, path=None):
@@ -2497,7 +2369,7 @@ span.badLink {{color:#F33}}
         self.preferences['lastOpenWithStr'] = prog
         
         # Launch program.
-        args = shlex.split(prog) + [path]
+        args = shlex.split(prog) + [utils.escapePath(path)]
         self.launchProcess(args)
     
     """
@@ -2671,7 +2543,7 @@ span.badLink {{color:#F33}}
         """
         # Check if the current tab is dirty before doing anything.
         # Perform save operations if necessary.
-        if not isNewFile and not self.dirtySave():
+        if not self.dirtySave():
             return True
         
         # Re-cast the QUrl so any query strings are evaluated properly.
@@ -2901,13 +2773,13 @@ span.badLink {{color:#F33}}
                                 k, v = kv.split("=", 1)
                                 local_sdf_args[k] = v
                         if local_sdf_args:
-                            queryParams = ["sdf={}".format("+".join("{}:{}".format(k, v) for k, v in sorted(local_sdf_args.items(), key=lambda x: x[0])))]
+                            queryParams = ["sdf=" + "+".join("{}:{}".format(k, v) for k, v in sorted(local_sdf_args.items(), key=lambda x: x[0]))]
                         else:
                             queryParams = []
                         
                         # .usdz file references (e.g. @set.usdz[foo/bar.usd]@)
                         if m.group(2):
-                            queryParams.append("layer={}".format(m.group(2)))
+                            queryParams.append("layer=" + m.group(2))
                         
                         # Make the HTML link.
                         if exists[fullPath]:
@@ -2916,11 +2788,11 @@ span.badLink {{color:#F33}}
                                 queryParams.insert(0, "binary=1")
                                 htmlLink = '<a class="binary" href="{}?{}">{}</a>'.format(fullPath, "&".join(queryParams), linkPath)
                             else:
-                                queryStr = "?{}".format("&".join(queryParams)) if queryParams else ""
+                                queryStr = "?" + "&".join(queryParams) if queryParams else ""
                                 htmlLink = '<a href="{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
                         elif '*' in linkPath or '&lt;UDIM&gt;' in linkPath or '.#.' in linkPath:
                             # Create an orange link for files with wildcards in the path, designating zero or more files may exist.
-                            queryStr = "?{}".format("&".join(queryParams)) if queryParams else ""
+                            queryStr = "?" + "&".join(queryParams) if queryParams else ""
                             htmlLink = '<a title="Multiple files may exist" class="mayNotExist" href="{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
                         else:
                             raise ValueError
@@ -3028,7 +2900,7 @@ span.badLink {{color:#F33}}
         """
         prevPath = self.currTab.getCurrentPath()
         for path in files:
-            self.setSource(QtCore.QUrl(os.path.abspath(utils.expandPath(path, prevPath))), newTab=True)
+            self.setSource(utils.expandUrl(path, prevPath), newTab=True)
     
     def validateFileSize(self, path):
         """ If a file's size is above a certain threshold, confirm the user still wants to open the file.
@@ -3113,7 +2985,7 @@ span.badLink {{color:#F33}}
         """ Handle loading the current path in the address bar.
         """
         # Check if text has changed.
-        text = QtCore.QUrl(os.path.abspath(utils.expandPath(self.addressBar.text().strip())))
+        text = utils.expandUrl(self.addressBar.text().strip())
         if text != self.currTab.getCurrentUrl():
             self.setSource(text)
         else:
@@ -3231,15 +3103,15 @@ span.badLink {{color:#F33}}
         """
         self.buttonGo.setEnabled(bool(address.strip()))
     
-    def launchProcess(self, args, shell=False, **kwargs):
+    def launchProcess(self, args, **kwargs):
         """ Launch a program with the path `str` as an argument.
+        
+        Any additional keyword arguments are passed to the Popen object.
         
         :Parameters:
             args : `list` | `str`
                 A sequence of program arguments with the program as the first arg.
-                If shell=True, this should be a single string.
-            shell : `bool`
-                Run in a shell
+                If also passing in shell=True, this should be a single string.
         :Returns:
             Returns process ID or None
         :Rtype:
@@ -3247,12 +3119,15 @@ span.badLink {{color:#F33}}
         """
         with self.overrideCursor():
             try:
-                if shell:
-                    cmd = args
+                if kwargs.get("shell"):
+                    # With shell=True, convert args to a string to call Popen with.
+                    if isinstance(args, list):
+                        args = subprocess.list2cmdline(args)
+                    logger.info(args)
                 else:
-                    cmd = subprocess.list2cmdline(args)
-                logger.info(cmd)
-                p = subprocess.Popen(args, shell=shell, **kwargs)
+                    # Leave args as a list for Popen, but still log the string command.
+                    logger.info(subprocess.list2cmdline(args))
+                p = subprocess.Popen(args, **kwargs)
                 return p
             except Exception:
                 self.restoreOverrideCursor()
@@ -3425,7 +3300,14 @@ span.badLink {{color:#F33}}
     @Slot(str)
     def onBreadcrumbActivated(self, path):
         """ Slot called when a breadcrumb link (history for the current tab) is selected.
+        
+        :Parameters:
+            path : `str`
+                Breadcrumb path
         """
+        # Check if there are any changes to be saved before we modify the history.
+        if not self.dirtySave():
+            return
         self.currTab.historyIndex = self.currTab.findPath(path)
         self.currTab.updateBreadcrumb()
         self.setSource(self.currTab.getCurrentUrl(), isNewFile=False)
@@ -3810,18 +3692,21 @@ class TextEdit(QtWidgets.QTextEdit):
     """
     Customized QTextEdit to allow entering spaces with the Tab key.
     """
-    def __init__(self, parent=None, tabSpaces=4):
+    def __init__(self, parent=None, tabSpaces=4, useSpaces=True):
         """ Create and initialize the tab.
         
         :Parameters:
             parent : `BrowserTab`
                 Browser tab containing this text edit widget
             tabSpaces : `int`
-                Number of spaces to use instead of a tab character.
-                If 0, use a tab character.
+                Number of spaces to use instead of a tab character, if useSpaces is True.
+            useSpaces : `bool`
+                If True, use the number of tab spaces instead of a tab character;
+                otherwise, just use a tab character
         """
         super(TextEdit, self).__init__(parent)
         self.tabSpaces = tabSpaces
+        self.useSpaces = useSpaces
     
     def keyPressEvent(self, e):
         """ Override the Tab key to insert spaces instead.
@@ -3830,10 +3715,178 @@ class TextEdit(QtWidgets.QTextEdit):
             e : `QtGui.QKeyEvent`
                 Key press event
         """
-        if self.tabSpaces and e.key() == QtCore.Qt.Key_Tab and e.modifiers() == QtCore.Qt.NoModifier:
-            self.insertPlainText(" " * self.tabSpaces)
+        if e.key() == QtCore.Qt.Key_Tab:
+            if e.modifiers() == QtCore.Qt.NoModifier:
+                if self.textCursor().hasSelection():
+                    self.indentText()
+                    return
+                elif self.useSpaces:
+                    # Insert the spaces equivalent of a tab character.
+                    # Otherwise, QTextEdit already handles inserting the tab character.
+                    self.insertPlainText(" " * self.tabSpaces)
+                    return
+        elif e.key() == QtCore.Qt.Key_Backtab and e.modifiers() == QtCore.Qt.ShiftModifier and self.textCursor().hasSelection():
+            self.unindentText()
+            return
+        super(TextEdit, self).keyPressEvent(e)
+    
+    def commentOutText(self, commentStart="#", commentEnd=""):
+        """ Comment out selected lines.
+        
+        TODO: For languages that use a different syntax for multi-line comments,
+        use that when multiple lines are selected?
+        
+        :Parameters:
+            commentStart : `str`
+                String used for commenting out lines.
+            commentEnd : `str`
+                If the comment can be applied to multiple lines,
+                this is the string marking the end of the comment.
+        """
+        cursor = self.textCursor()
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        commentLen = len(commentStart)
+        cursor.setPosition(start)
+        cursor.movePosition(cursor.StartOfBlock)
+        cursor.beginEditBlock()
+        
+        if not commentEnd:
+            # Modify all blocks between selectionStart and selectionEnd
+            while cursor.position() <= end and not cursor.atEnd():
+                cursor.insertText(commentStart)
+                # For every character we insert, increment the end position.
+                end += commentLen
+                prevBlock = cursor.blockNumber()
+                cursor.movePosition(cursor.NextBlock)
+                
+                # I think I have a bug in my code if I have to do this.
+                if prevBlock == cursor.blockNumber():
+                    break
         else:
-            super(TextEdit, self).keyPressEvent(e)
+            # Only modify the beginning and end lines since this can
+            # be a multiple-line comment.
+            cursor.insertText(commentStart)
+            cursor.setPosition(end)
+            cursor.movePosition(cursor.EndOfBlock)
+            cursor.insertText(commentEnd)
+        cursor.endEditBlock()
+    
+    def uncommentText(self, commentStart="#", commentEnd=""):
+        """ Uncomment selected lines.
+        
+        :Parameters:
+            commentStart : `str`
+                String used for commenting out lines.
+            commentEnd : `str`
+                If the comment can be applied to multiple lines,
+                this is the string marking the end of the comment.
+        """
+        cursor = self.textCursor()
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        commentLen = len(commentStart)
+        cursor.setPosition(start)
+        cursor.movePosition(cursor.StartOfBlock)
+        cursor.beginEditBlock()
+        if not commentEnd:
+            # Modify all blocks between selectionStart and selectionEnd
+            while cursor.position() <= end and not cursor.atEnd():
+                block = cursor.block()
+                # Select the number of characters used in the comment string.
+                for i in range(len(commentStart)):
+                    cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
+                # If the selection is all on the same line and matches the comment string, remove it.
+                if block.contains(cursor.selectionEnd()) and cursor.selectedText() == commentStart:
+                    cursor.deleteChar()
+                    end -= commentLen
+                prevBlock = cursor.blockNumber()
+                cursor.movePosition(cursor.NextBlock)
+                if prevBlock == cursor.blockNumber():
+                    break
+        else:
+            # Remove the beginning comment string.
+            # Do we only want to do this if there's also an end comment string in the selection?
+            # We probably also want to remove the comments if there is any whitespace before or after it.
+            # This logic may not be completely right when some comment symbols are already in the selection.
+            block = cursor.block()
+            # Select the number of characters used in the comment string.
+            for i in range(len(commentStart)):
+                cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
+            # If the selection is all on the same line and matches the comment string, remove it.
+            if block.contains(cursor.selectionEnd()) and cursor.selectedText() == commentStart:
+                cursor.deleteChar()
+            # Remove the end comment string.
+            cursor.setPosition(end - len(commentStart))
+            block = cursor.block()
+            cursor.movePosition(cursor.EndOfBlock)
+            for i in range(len(commentEnd)):
+                cursor.movePosition(cursor.PreviousCharacter, cursor.KeepAnchor)
+            if block.contains(cursor.selectionStart()) and cursor.selectedText() == commentEnd:
+                cursor.deleteChar()
+        cursor.endEditBlock()
+    
+    def indentText(self):
+        """ Indent selected lines by one tab stop.
+        """
+        cursor = self.textCursor()
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        cursor.setPosition(start)
+        cursor.movePosition(cursor.StartOfBlock)
+        cursor.beginEditBlock()
+        # Modify all blocks between selectionStart and selectionEnd
+        while cursor.position() <= end and not cursor.atEnd():
+            if self.useSpaces:
+                if self.tabSpaces:
+                    cursor.insertText(" " * self.tabSpaces)
+                    # Increment end by the number of characters we inserted.
+                    end += self.tabSpaces
+            else:
+                cursor.insertText("\t")
+                end += 1
+            prevBlock = cursor.blockNumber()
+            cursor.movePosition(cursor.NextBlock)
+            if prevBlock == cursor.blockNumber():
+                break
+        cursor.endEditBlock()
+    
+    def unindentText(self):
+        """ Un-indent selected lines by one tab stop.
+        """
+        cursor = self.textCursor()
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        cursor.setPosition(start)
+        cursor.movePosition(cursor.StartOfBlock)
+        cursor.beginEditBlock()
+        # Modify all blocks between selectionStart and selectionEnd
+        while cursor.position() <= end and not cursor.atEnd():
+            currBlock = cursor.blockNumber()
+            
+            for i in range(self.tabSpaces):
+                cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
+                if cursor.selectedText() == " ":
+                    cursor.deleteChar()
+                    end -= 1
+                elif cursor.selectedText() == "\t":
+                    cursor.deleteChar()
+                    end -= 1
+                    # If we hit a tab character, that's the end of this tab stop.
+                    break
+                else:
+                    break
+            
+            # If we're still in the same block, go to the next block.
+            if currBlock == cursor.blockNumber():
+                cursor.movePosition(cursor.NextBlock)
+                if currBlock == cursor.blockNumber():
+                    # We didn't get a new block, so we're at the end.
+                    break
+            else:
+                # We already moved to the next block.
+                cursor.movePosition(cursor.StartOfLine, cursor.MoveAnchor)
+        cursor.endEditBlock()
 
 
 class BrowserTab(QtWidgets.QWidget):
@@ -4041,7 +4094,8 @@ class BrowserTab(QtWidgets.QWidget):
         width = tabSpaces * QtGui.QFontMetricsF(font).averageCharWidth()
         self.textBrowser.setTabStopWidth(width)
         self.textEditor.setTabStopWidth(width)
-        self.textEditor.tabSpaces = tabSpaces if useSpaces else 0
+        self.textEditor.tabSpaces = tabSpaces
+        self.textEditor.useSpaces = useSpaces
     
     def updateHistory(self, url, update=False, truncated=False):
         """ Add a newly created file to the tab's history.
@@ -4164,8 +4218,9 @@ class App(QtCore.QObject):
         # Initialize the application and settings.
         self._set_log_level()
         logger.debug("Qt version: {} {}".format(Qt.__binding__, Qt.__binding_version__))
-        self.app = QtWidgets.QApplication(sys.argv)#, True)
+        self.app = QtWidgets.QApplication(sys.argv)
         self.app.setApplicationName(self.appName)
+        self.app.setWindowIcon(QtGui.QIcon(":images/images/logo.png"))
         if Qt.IsPySide2 or Qt.IsPyQt5:
             self.app.setApplicationDisplayName(self.appDisplayName)
         self.app.setOrganizationName("USD")
