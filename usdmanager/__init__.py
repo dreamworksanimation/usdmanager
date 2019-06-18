@@ -2331,7 +2331,7 @@ span.badLink {{color:#F33}}
     def launchTextEditor(self):
         """ Launch the current file in a separate text editing application.
         """
-        path = utils.escapePath(self.currTab.getCurrentPath())
+        path = self.currTab.getCurrentPath()
         args = shlex.split(self.preferences['textEditor']) + [path]
         self.launchProcess(args)
     
@@ -2339,7 +2339,7 @@ span.badLink {{color:#F33}}
     def launchUsdView(self):
         """ Launch the current file in usdview.
         """
-        path = utils.escapePath(self.currTab.getCurrentPath())
+        path = self.currTab.getCurrentPath()
         args = [self.app.appConfig.get("usdview", "usdview"), path]
         self.launchProcess(args)
     
@@ -2369,7 +2369,7 @@ span.badLink {{color:#F33}}
         self.preferences['lastOpenWithStr'] = prog
         
         # Launch program.
-        args = shlex.split(prog) + [utils.escapePath(path)]
+        args = shlex.split(prog) + [path]
         self.launchProcess(args)
     
     """
@@ -3121,6 +3121,7 @@ span.badLink {{color:#F33}}
             try:
                 if kwargs.get("shell"):
                     # With shell=True, convert args to a string to call Popen with.
+                    logger.debug("Running Popen with shell=True")
                     if isinstance(args, list):
                         args = subprocess.list2cmdline(args)
                     logger.info(args)

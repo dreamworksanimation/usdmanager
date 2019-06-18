@@ -107,20 +107,6 @@ def expandUrl(path, parentPath=None):
     return QtCore.QUrl(os.path.abspath(expandPath(path, parentPath, sdf_format_args)) + query)
 
 
-def escapePath(path):
-    """ Wrap path in quotation marks on Windows.
-    
-    :Parameters:
-        path : `str`
-            File path
-    :Returns:
-        Escaped path
-    :Rtype:
-        `str`
-    """
-    return '"{}"'.format(path) if os.name == "nt" else path
-
-
 def findModules(subdir):
     """ Find and import all modules in a subdirectory of this project.
     Ignores any files starting with an underscore or tilde.
