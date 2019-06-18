@@ -131,12 +131,14 @@ def findModules(subdir):
     return modules
 
 
-def generateTemporaryUsdFile(usdFileName):
+def generateTemporaryUsdFile(usdFileName, tmpDir=None):
     """ Generate a temporary ASCII USD file that the user can edit.
     
     :Parameters:
         usdFileName : `str`
             Binary USD file path
+        tmpDir : `str` | None
+            Temp directory to create the new unzipped directory within
     :Returns:
         Temporary file name
     :Rtype:
@@ -144,7 +146,7 @@ def generateTemporaryUsdFile(usdFileName):
     :Raises OSError:
         If usdcat fails
     """
-    fd, tmpFileName = tempfile.mkstemp(suffix=".usd")
+    fd, tmpFileName = tempfile.mkstemp(suffix=".usd", dir=tmpDir)
     try:
         usdcat(usdFileName, tmpFileName, format="usda")
     finally:
@@ -204,7 +206,7 @@ def usdzip(inputs, dest):
 
 
 # TODO: Support nested references (e.g. @set.usdz[areas/shire.usdz[architecture/BilboHouse/Table.usd]]@)
-def unzip(path, layer=None):
+def unzip(path, layer=None, tmpDir=None):
     """ Unzip a usdz format file to a temporary directory.
     
     :Parameters:
@@ -213,6 +215,8 @@ def unzip(path, layer=None):
         layer : `str` | None
             Default layer within file (e.g. the portion within the square brackets here:
             @foo.usdz[path/to/file/within/package.usd]@)
+        tmpDir : `str` | None
+            Temp directory to create the new unzipped directory within
     :Returns:
         Destination file
     :Rtype:
@@ -222,8 +226,7 @@ def unzip(path, layer=None):
     :Raises ValueError:
         If default layer not found
     """
-    # TODO: Clean up this temp dir when exiting the app?
-    destDir = tempfile.mkdtemp(prefix="usdmanager_usdz_")
+    destDir = tempfile.mkdtemp(prefix="usdmanager_usdz_", dir=tmpDir)
     cmd = "unzip {} -d {}".format(path, destDir)
     logger.debug(cmd)
     try:

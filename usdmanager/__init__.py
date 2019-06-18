@@ -45,6 +45,7 @@ import os
 import re
 import shlex
 import signal
+import shutil
 import stat
 import subprocess
 import sys
@@ -988,7 +989,7 @@ span.badLink {{color:#F33}}
             elif ext == ".usd" and (fileFormat == FILE_FORMAT_USDC or (fileFormat == FILE_FORMAT_NONE and self.currTab.fileFormat == FILE_FORMAT_USDC)):
                 crate = True
         if crate:
-            fd, tmpPath = tempfile.mkstemp(suffix=".usd")
+            fd, tmpPath = tempfile.mkstemp(suffix=".usd", dir=self.app.tmpDir)
             os.close(fd)
             status = False
             if self.saveFile(tmpPath, fileFormat, False):
@@ -2189,12 +2190,11 @@ span.badLink {{color:#F33}}
         Allows you to make comparisons using a temporary file, without saving your changes.
         """
         path = self.currTab.getCurrentPath()
-        fd, tmpPath = tempfile.mkstemp(suffix=QtCore.QFileInfo(path).fileName())
+        fd, tmpPath = tempfile.mkstemp(suffix=QtCore.QFileInfo(path).fileName(), dir=self.app.tmpDir)
         with os.fdopen(fd, 'w') as f:
             f.write(self.currTab.textEditor.toPlainText())
         args = shlex.split(self.preferences['diffTool']) + [path, tmpPath]
         self.launchProcess(args)
-        # TODO: Cleanup temp file if/when diff tool is closed.
     
     @staticmethod
     def getPermissionString(path):
@@ -2379,11 +2379,12 @@ span.badLink {{color:#F33}}
     def showAboutDialog(self, *args):
         """ Display a modal dialog box that shows the "about" information for the application.
         """
+        from .version import __version__
         captionText = "About {}".format(self.app.appDisplayName)
-        aboutText = ("<b>App Name:</b> {0}<br/>"
-                     "<b>App Path:</b> {1}<br/>"
-                     "<b>Documentation:</b> <a href={2}>{2}</a>".format(
-                        self.app.appName, self.app.appPath, self.app.appURL))
+        aboutText = ("<b>App Name:</b> {0} {1}<br/>"
+                     "<b>App Path:</b> {2}<br/>"
+                     "<b>Documentation:</b> <a href={3}>{3}</a>".format(
+                        self.app.appName, __version__, self.app.appPath, self.app.appURL))
         QtWidgets.QMessageBox.about(self, captionText, aboutText)
     
     @Slot(bool)
@@ -2498,7 +2499,7 @@ span.badLink {{color:#F33}}
         logger.debug("Binary USD file detected. Converting to ASCII representation.")
         self.currTab.fileFormat = FILE_FORMAT_USDC
         self.tabWidget.setTabIcon(self.tabWidget.currentIndex(), self.binaryIcon)
-        usdPath = utils.generateTemporaryUsdFile(fileStr)
+        usdPath = utils.generateTemporaryUsdFile(fileStr, self.app.tmpDir)
         with open(usdPath) as f:
             fileText = f.readlines()
         os.remove(usdPath)
@@ -2519,7 +2520,7 @@ span.badLink {{color:#F33}}
         logger.debug("Uncompressing usdz file...")
         self.currTab.fileFormat = FILE_FORMAT_USDZ
         self.tabWidget.setTabIcon(self.tabWidget.currentIndex(), self.zipIcon)
-        usdDir = utils.unzip(fileStr)
+        usdDir = utils.unzip(fileStr, self.app.tmpDir)
         return os.path.join(usdDir, os.path.basename(fileStr))
     '''
     
@@ -2663,7 +2664,7 @@ span.badLink {{color:#F33}}
                         # TODO: Support nested usdz references.
                         usd = True
                         layer = utils.queryItemValue(link, "layer")
-                        dest = utils.unzip(fileStr, layer)
+                        dest = utils.unzip(fileStr, layer, self.app.tmpDir)
                         self.restoreOverrideCursor()
                         return self.setSource(QtCore.QUrl(dest))
                     else:
@@ -4191,6 +4192,7 @@ class App(QtCore.QObject):
         """
         self.appPath = sys.argv[0]
         self.appName = os.path.basename(self.appPath)
+        self.tmpDir = None
         
         parser = argparse.ArgumentParser(prog=os.path.basename(self.appPath),
             description = 'File Browser/Text Editor for quick navigation and\n'
@@ -4295,6 +4297,9 @@ class App(QtCore.QObject):
         """ Start the application loop.
         """
         if not App._eventLoopStarted:
+            # Create a temp directory for cache-like files.
+            self.tmpDir = tempfile.mkdtemp(prefix=self.appName)
+            logger.debug("Temp directory: {}".format(self.tmpDir))
             App._eventLoopStarted = True
             self.app.exec_()
     
@@ -4303,6 +4308,10 @@ class App(QtCore.QObject):
         """ Callback when the application is exiting.
         """
         App._eventLoopStarted = False
+        
+        # Clean up our temp dir.
+        if self.tmpDir is not None:
+            shutil.rmtree(self.tmpDir, ignore_errors=True)
 
 
 class Settings(QtCore.QSettings):
