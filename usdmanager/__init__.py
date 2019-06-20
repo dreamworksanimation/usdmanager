@@ -2339,9 +2339,15 @@ span.badLink {{color:#F33}}
     def launchUsdView(self):
         """ Launch the current file in usdview.
         """
+        app = self.app.appConfig.get("usdview", "usdview")
         path = self.currTab.getCurrentPath()
-        args = [self.app.appConfig.get("usdview", "usdview"), path]
-        self.launchProcess(args)
+        # Files with spaces have to be double-quoted on Windows for usdview.
+        if os.name == "nt":
+            cmd = '{} "{}"'.format(app, path)
+            self.launchProcess(cmd, shell=True)
+        else:
+            args = [app, path]
+            self.launchProcess(args)
     
     @Slot()
     def launchProgramOfChoice(self, path=None):
