@@ -106,4 +106,7 @@ For ease of use, there are some extra shortcuts not shown in the menus themselve
      - Ctrl+Shift+Tab
    * - Reload
      - F5
-
+   * - Indent (if text is selected)
+     - Tab
+   * - Unindent (if text is selected)
+     - Shift+Tab
