@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>463</width>
-    <height>519</height>
+    <height>574</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -163,6 +163,16 @@
         </layout>
        </item>
        <item>
+        <widget class="QCheckBox" name="themeWidget">
+         <property name="toolTip">
+          <string>Use the dark UI theme. You must restart the application to see any changes for this setting.</string>
+         </property>
+         <property name="text">
+          <string>Dark theme (restart to see changes)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <layout class="QFormLayout" name="formLayout">
          <item row="0" column="0">
           <widget class="QLabel" name="labelTextEditor">
@@ -254,8 +264,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>417</width>
-            <height>260</height>
+            <width>119</width>
+            <height>72</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="scrollAreaLayout">
@@ -415,6 +425,9 @@
   <tabstop>checkBox_showAllMessages</tabstop>
   <tabstop>checkBox_showHiddenFiles</tabstop>
   <tabstop>checkBox_autoCompleteAddressBar</tabstop>
+  <tabstop>useSpacesCheckBox</tabstop>
+  <tabstop>useSpacesSpinBox</tabstop>
+  <tabstop>themeWidget</tabstop>
   <tabstop>lineEditTextEditor</tabstop>
   <tabstop>lineEditDiffTool</tabstop>
   <tabstop>buttonFont</tabstop>

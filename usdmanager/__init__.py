@@ -246,13 +246,32 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         """
         self.baseInstance = utils.loadUiWidget('main_window.ui', self)
         
-        # Set usdview stylesheet.
-        if self.app.opts['dark']:
+        # You now have access to the widgets defined in the ui file.
+        self.defaultDocFont = QtGui.QFont()
+        self.defaultDocFont.setStyleHint(QtGui.QFont.Courier)
+        self.defaultDocFont.setFamily("Monospace")
+        self.defaultDocFont.setPointSize(9)
+        self.defaultDocFont.setBold(False)
+        self.defaultDocFont.setItalic(False)
+        
+        self.readSettings()
+        self.compileLinkRegEx()
+        
+        # Changing the theme while the app is already running doesn't work well.
+        # Currently, we set this once, and the user must restart the application to see changes.
+        userThemeName = self.app.opts['theme'] or self.preferences['theme']
+        if userThemeName == "dark":
+            # Set usdview-based stylesheet.
             stylesheet = resource_filename(__name__, "usdviewstyle.qss")
             with open(stylesheet) as f:
                 # Qt style sheet accepts only forward slashes as path separators.
                 sheetString = f.read().replace('RESOURCE_DIR', os.path.dirname(stylesheet).replace("\\", "/"))
             self.setStyleSheet(sheetString)
+        
+        # Do some additional adjustments for any dark theme, even if it's coming from the system settings.
+        # TODO: Be able to make these adjustments on the fly if the user changes the system theme.
+        if self.isDarkTheme():
+            highlighter.DARK_THEME = True
             
             # Change some more stuff that the stylesheet doesn't catch.
             p = QtWidgets.QApplication.palette()
@@ -267,19 +286,6 @@ a.mayNotExist {{color:#CC6}}
 a.binary {{color:#69F}}
 span.badLink {{color:#F33}}
 </style></head><body style="white-space:pre">{}</body></html>"""
-            
-            highlighter.DARK_THEME = True
-        
-        # You now have access to the widgets defined in the ui file.
-        self.defaultDocFont = QtGui.QFont()
-        self.defaultDocFont.setStyleHint(QtGui.QFont.Courier)
-        self.defaultDocFont.setFamily("Monospace")
-        self.defaultDocFont.setPointSize(9)
-        self.defaultDocFont.setBold(False)
-        self.defaultDocFont.setItalic(False)
-        
-        self.readSettings()
-        self.compileLinkRegEx()
         
         searchPaths = QtGui.QIcon.themeSearchPaths()
         extraSearchPaths = [x for x in self.app.appConfig.get("themeSearchPaths", []) if x not in searchPaths]
@@ -646,7 +652,8 @@ span.badLink {{color:#F33}}
             'diffTool': self.config.value("diffTool", self.app.appConfig.get("diffTool", "xdiff")),
             'autoCompleteAddressBar': self.config.boolValue("autoCompleteAddressBar", True),
             'useSpaces': self.config.boolValue("useSpaces", True),
-            'tabSpaces': int(self.config.value("tabSpaces", 4))
+            'tabSpaces': int(self.config.value("tabSpaces", 4)),
+            'theme': self.config.value("theme", None),
         }
         
         # Read 'programs' settings object into self.programs.
@@ -728,6 +735,7 @@ span.badLink {{color:#F33}}
         self.config.setValue("autoCompleteAddressBar", self.preferences['autoCompleteAddressBar'])
         self.config.setValue("useSpaces", self.preferences['useSpaces'])
         self.config.setValue("tabSpaces", self.preferences['tabSpaces'])
+        self.config.setValue("theme", self.preferences['theme'])
         
         # Write self.programs to settings object
         exts = self.programs.keys()
@@ -1604,7 +1612,7 @@ span.badLink {{color:#F33}}
         if cursor.hasSelection():
             # Found phrase. Set cursor and formatting.
             currTextWidget.setTextCursor(cursor)
-            self.findBar.setStyleSheet("QLineEdit{{background:{}}}".format("inherit" if self.app.opts['dark'] else "none"))
+            self.findBar.setStyleSheet("QLineEdit{{background:{}}}".format("inherit" if self.isDarkTheme() else "none"))
             if loop:
                 # Didn't just loop through the document, so hide any messages.
                 self.labelFindPixmap.setVisible(False)
@@ -1924,6 +1932,7 @@ span.badLink {{color:#F33}}
             self.preferences['font'] = dlg.getPrefFont()
             self.preferences['useSpaces'] = dlg.getPrefUseSpaces()
             self.preferences['tabSpaces'] = dlg.getPrefTabSpaces()
+            self.preferences['theme'] = dlg.getPrefTheme()
             
             # Update font and line number visibility in all tabs.
             self.tabWidget.setFont(self.preferences['font'])
@@ -1999,7 +2008,7 @@ span.badLink {{color:#F33}}
             self.buttonHighlightAll.setEnabled(False)
             if self.buttonHighlightAll.isChecked():
                 self.findHighlightAll()
-            self.findBar.setStyleSheet("QLineEdit{{background:{}}}".format("inherit" if self.app.opts['dark'] else "none"))
+            self.findBar.setStyleSheet("QLineEdit{{background:{}}}".format("inherit" if self.isDarkTheme() else "none"))
             self.labelFindPixmap.setVisible(False)
             self.labelFindStatus.setVisible(False)
     
@@ -3028,6 +3037,17 @@ span.badLink {{color:#F33}}
         if not self.quitting:
             self.findHighlightAll()
     
+    def isDarkTheme(self):
+        """ Check if any dark theme is active based on the background lightness.
+        
+        :Returns:
+            True if the lightness factor of the window background is less than 0.5.
+            The 0.5 threshold to determine if it's dark is completely arbitrary.
+        :Rtype:
+            `bool`
+        """
+        return self.palette().window().color().lightnessF() < 0.5
+    
     def updateButtons(self):
         """ Update button states, text fields, and other GUI elements.
         """
@@ -3733,7 +3753,7 @@ class TextEdit(QtWidgets.QTextEdit):
                     # Otherwise, QTextEdit already handles inserting the tab character.
                     self.insertPlainText(" " * self.tabSpaces)
                     return
-        elif e.key() == QtCore.Qt.Key_Backtab and e.modifiers() == QtCore.Qt.ShiftModifier and self.textCursor().hasSelection():
+        elif e.key() == QtCore.Qt.Key_Backtab and e.modifiers() == QtCore.Qt.ShiftModifier:
             self.unindentText()
             return
         super(TextEdit, self).keyPressEvent(e)
@@ -3844,7 +3864,7 @@ class TextEdit(QtWidgets.QTextEdit):
         cursor.movePosition(cursor.StartOfBlock)
         cursor.beginEditBlock()
         # Modify all blocks between selectionStart and selectionEnd
-        while cursor.position() <= end and not cursor.atEnd():
+        while cursor.position() < end and not cursor.atEnd():
             if self.useSpaces:
                 if self.tabSpaces:
                     cursor.insertText(" " * self.tabSpaces)
@@ -3869,7 +3889,7 @@ class TextEdit(QtWidgets.QTextEdit):
         cursor.movePosition(cursor.StartOfBlock)
         cursor.beginEditBlock()
         # Modify all blocks between selectionStart and selectionEnd
-        while cursor.position() <= end and not cursor.atEnd():
+        while cursor.position() < end and not cursor.atEnd():
             currBlock = cursor.blockNumber()
             
             for i in range(self.tabSpaces):
@@ -3915,7 +3935,7 @@ class BrowserTab(QtWidgets.QWidget):
         """
         super(BrowserTab, self).__init__(parent)
         
-        if self.window().app.opts['dark']:
+        if self.window().isDarkTheme():
             color = QtGui.QColor(35, 35, 35).name()
         else:
             color = self.style().standardPalette().base().color().darker(105).name()
@@ -4204,10 +4224,18 @@ class App(QtCore.QObject):
             description = 'File Browser/Text Editor for quick navigation and\n'
                 'editing among text-based files that reference other files.\n\n')
         parser.add_argument('fileName', nargs='*', help='The file(s) to view.')
-        parser.add_argument("-dark",
-            action="store_true",
-            help="Use usdview-like dark Qt theme"
+        
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument("-theme",
+            choices=["light", "dark"],
+            help="Override the user theme preference. Use the Preferences dialog to save this setting)"
         )
+        # Legacy flag, now equivalent to "-theme dark"
+        group.add_argument("-dark",
+            action="store_true",
+            help=argparse.SUPPRESS
+        )
+        
         parser.add_argument("-info",
             action="store_true",
             help="Log info messages"
@@ -4217,11 +4245,14 @@ class App(QtCore.QObject):
             help="Log debugging messages"
         )
         results = parser.parse_args()
+        if results.dark:
+            results.theme = "dark"
+            logger.warning('The -dark flag has been deprecated. Please use "-theme dark" instead.')
         self.opts = {
             'dir': os.getcwd(),
             'info': results.info,
             'debug': results.debug,
-            'dark': results.dark
+            'theme': results.theme,
         }
         
         # Initialize the application and settings.

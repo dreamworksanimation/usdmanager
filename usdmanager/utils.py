@@ -147,10 +147,8 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
         If usdcat fails
     """
     fd, tmpFileName = tempfile.mkstemp(suffix=".usd", dir=tmpDir)
-    try:
-        usdcat(usdFileName, tmpFileName, format="usda")
-    finally:
-        os.close(fd)
+    os.close(fd)
+    usdcat(usdFileName, tmpFileName, format="usda")
     return tmpFileName
 
 
