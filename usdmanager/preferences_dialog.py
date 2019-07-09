@@ -76,6 +76,7 @@ class PreferencesDialog(QDialog):
         self.useSpacesSpinBox.setValue(parent.preferences['tabSpaces'])
         self.lineEditTextEditor.setText(parent.preferences['textEditor'])
         self.lineEditDiffTool.setText(parent.preferences['diffTool'])
+        self.themeWidget.setChecked(parent.preferences['theme'] == "dark")
         self.updateFontLabel()
         
         # ----- Programs tab -----
@@ -215,6 +216,19 @@ class PreferencesDialog(QDialog):
         """
         return self.lineEditTextEditor.text()
     
+    def getPrefTheme(self):
+        """ Get the selected theme.
+        
+        We may eventually make this a combo box supporting multiple themes,
+        so use the string name instead of just a boolean.
+        
+        :Returns:
+            Selected theme name, or None if the default
+        :Rtype:
+            `str` | None
+        """
+        return "dark" if self.themeWidget.isChecked() else None
+    
     def getPrefUseSpaces(self):
         """
         :Returns:
@@ -318,6 +332,7 @@ class PreferencesDialog(QDialog):
             self.lineEditDiffTool.setText(window.app.appConfig.get("diffTool", "xdiff"))
             self.useSpacesCheckBox.setChecked(True)
             self.useSpacesSpinBox.setValue(4)
+            self.themeWidget.setChecked(False)
             self.docFont = window.defaultDocFont
             self.updateFontLabel()
             
