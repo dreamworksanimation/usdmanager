@@ -52,7 +52,8 @@ LINE_CHAR_LIMIT = 999
 
 # Truncate loading files with more lines than this.
 # Display can slow down and/or become unusable with too many lines.
-LINE_LIMIT = 10000
+# This number is less important than the total number of characters and can be overridden in Preferences.
+LINE_LIMIT = 50000
 
 # Truncate loading files with more total chars than this.
 # QString crashes at ~2.1 billion chars, but display slows down way before that.

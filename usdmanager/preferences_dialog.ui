@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>463</width>
-    <height>574</height>
+    <height>450</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -36,42 +36,12 @@
       </attribute>
       <layout class="QVBoxLayout" name="layoutGeneral">
        <item>
-        <widget class="QCheckBox" name="checkBox_parseLinks">
-         <property name="toolTip">
-          <string>Parse files for links to other files. Disable for faster loading of larger files</string>
-         </property>
-         <property name="text">
-          <string>Parse links</string>
-         </property>
-        </widget>
-       </item>
-       <item>
         <widget class="QCheckBox" name="checkBox_newTab">
          <property name="toolTip">
           <string>Open links in new tabs instead of the current tab</string>
          </property>
          <property name="text">
           <string>Open links in new tabs</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="checkBox_syntaxHighlighting">
-         <property name="toolTip">
-          <string>Enable syntax highlighting. Disable for faster loading of larger files</string>
-         </property>
-         <property name="text">
-          <string>Enable syntax highlighting</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="checkBox_teletypeConversion">
-         <property name="toolTip">
-          <string>Display teletype character codes properly in browse mode. Disable for faster loading of larger files</string>
-         </property>
-         <property name="text">
-          <string>Display teletype colors</string>
          </property>
         </widget>
        </item>
@@ -110,13 +80,6 @@
         </widget>
        </item>
        <item>
-        <widget class="QCheckBox" name="checkBox_autoCompleteAddressBar">
-         <property name="text">
-          <string>Auto complete paths in address bar</string>
-         </property>
-        </widget>
-       </item>
-       <item>
         <layout class="QHBoxLayout" name="useSpacesLayout">
          <item>
           <widget class="QCheckBox" name="useSpacesCheckBox">
@@ -144,6 +107,9 @@
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+           <property name="buddy">
+            <cstring>useSpacesSpinBox</cstring>
            </property>
           </widget>
          </item>
@@ -264,8 +230,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>119</width>
-            <height>72</height>
+            <width>421</width>
+            <height>187</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="scrollAreaLayout">
@@ -401,6 +367,120 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="tab_Advanced">
+      <attribute name="title">
+       <string>Advanced</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>The following options are primarily meant for debugging or as potential optimizations:</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_autoCompleteAddressBar">
+         <property name="text">
+          <string>Auto complete paths in address bar</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_teletypeConversion">
+         <property name="toolTip">
+          <string>Display teletype character codes properly in browse mode. Disable for faster loading of larger files</string>
+         </property>
+         <property name="text">
+          <string>Display teletype colors</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_syntaxHighlighting">
+         <property name="toolTip">
+          <string>Enable syntax highlighting. Disable for faster loading of larger files</string>
+         </property>
+         <property name="text">
+          <string>Enable syntax highlighting</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBox_parseLinks">
+         <property name="toolTip">
+          <string>Parse files for links to other files. Disable for faster loading of larger files</string>
+         </property>
+         <property name="text">
+          <string>Parse links</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayout_2">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelLineLimit">
+           <property name="toolTip">
+            <string>Number of lines to display before truncating the file. Extremely large files can lead to application lag. If a file is truncated, it will not be editable.</string>
+           </property>
+           <property name="text">
+            <string>Line Limit:</string>
+           </property>
+           <property name="buddy">
+            <cstring>lineLimitSpinBox</cstring>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <layout class="QHBoxLayout" name="lineLimitHLayout">
+           <item>
+            <widget class="QSpinBox" name="lineLimitSpinBox">
+             <property name="toolTip">
+              <string>Number of lines to display before truncating the file. Extremely large files can lead to application lag. If a file is truncated, it will not be editable.</string>
+             </property>
+             <property name="maximum">
+              <number>100000000</number>
+             </property>
+             <property name="value">
+              <number>10000</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="lineLimitHSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacer_3">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>
@@ -417,14 +497,10 @@
  </widget>
  <tabstops>
   <tabstop>tabWidget</tabstop>
-  <tabstop>checkBox_parseLinks</tabstop>
   <tabstop>checkBox_newTab</tabstop>
-  <tabstop>checkBox_syntaxHighlighting</tabstop>
-  <tabstop>checkBox_teletypeConversion</tabstop>
   <tabstop>checkBox_lineNumbers</tabstop>
   <tabstop>checkBox_showAllMessages</tabstop>
   <tabstop>checkBox_showHiddenFiles</tabstop>
-  <tabstop>checkBox_autoCompleteAddressBar</tabstop>
   <tabstop>useSpacesCheckBox</tabstop>
   <tabstop>useSpacesSpinBox</tabstop>
   <tabstop>themeWidget</tabstop>
@@ -434,6 +510,11 @@
   <tabstop>lineEdit</tabstop>
   <tabstop>scrollArea</tabstop>
   <tabstop>buttonNewProg</tabstop>
+  <tabstop>checkBox_autoCompleteAddressBar</tabstop>
+  <tabstop>checkBox_teletypeConversion</tabstop>
+  <tabstop>checkBox_syntaxHighlighting</tabstop>
+  <tabstop>checkBox_parseLinks</tabstop>
+  <tabstop>lineLimitSpinBox</tabstop>
   <tabstop>buttonBox</tabstop>
  </tabstops>
  <resources/>
