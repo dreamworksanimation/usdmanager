@@ -19,6 +19,7 @@ from Qt.QtCore import Slot, QRegExp
 from Qt.QtGui import QIcon, QRegExpValidator
 from Qt.QtWidgets import (QAbstractButton, QDialog, QDialogButtonBox, QFontDialog, QLineEdit, QMessageBox, QVBoxLayout)
 
+from .constants import LINE_LIMIT
 from .utils import loadUiWidget
 
 
@@ -77,6 +78,7 @@ class PreferencesDialog(QDialog):
         self.lineEditTextEditor.setText(parent.preferences['textEditor'])
         self.lineEditDiffTool.setText(parent.preferences['diffTool'])
         self.themeWidget.setChecked(parent.preferences['theme'] == "dark")
+        self.lineLimitSpinBox.setValue(parent.preferences['lineLimit'])
         self.updateFontLabel()
         
         # ----- Programs tab -----
@@ -188,6 +190,15 @@ class PreferencesDialog(QDialog):
             `bool`
         """
         return self.checkBox_autoCompleteAddressBar.isChecked()
+    
+    def getPrefLineLimit(self):
+        """
+        :Returns:
+            Number of lines to display before truncating a file.
+        :Rtype:
+            `int`
+        """
+        return self.lineLimitSpinBox.value()
     
     def getPrefSyntaxHighlighting(self):
         """
@@ -319,22 +330,23 @@ class PreferencesDialog(QDialog):
             self.deleteItems(self.extLayout)
             
             # Set other preferences in the GUI.
-            window = self.parent().window()
-            self.checkBox_parseLinks.setChecked(True)
-            self.checkBox_newTab.setChecked(False)
-            self.checkBox_syntaxHighlighting.setChecked(True)
-            self.checkBox_teletypeConversion.setChecked(True)
-            self.checkBox_lineNumbers.setChecked(True)
-            self.checkBox_showAllMessages.setChecked(True)
-            self.checkBox_showHiddenFiles.setChecked(False)
-            self.checkBox_autoCompleteAddressBar.setChecked(True)
-            self.lineEditTextEditor.setText(os.getenv("EDITOR", window.app.appConfig.get("textEditor", "nedit")))
-            self.lineEditDiffTool.setText(window.app.appConfig.get("diffTool", "xdiff"))
-            self.useSpacesCheckBox.setChecked(True)
-            self.useSpacesSpinBox.setValue(4)
+            default = self.parent().window().app.DEFAULTS
+            self.checkBox_parseLinks.setChecked(default['parseLinks'])
+            self.checkBox_newTab.setChecked(default['newTab'])
+            self.checkBox_syntaxHighlighting.setChecked(default['syntaxHighlighting'])
+            self.checkBox_teletypeConversion.setChecked(default['teletype'])
+            self.checkBox_lineNumbers.setChecked(default['lineNumbers'])
+            self.checkBox_showAllMessages.setChecked(default['showAllMessages'])
+            self.checkBox_showHiddenFiles.setChecked(default['showHiddenFiles'])
+            self.checkBox_autoCompleteAddressBar.setChecked(default['autoCompleteAddressBar'])
+            self.lineEditTextEditor.setText(default['textEditor'])
+            self.lineEditDiffTool.setText(default['diffTool'])
+            self.useSpacesCheckBox.setChecked(default['useSpaces'])
+            self.useSpacesSpinBox.setValue(default['tabSpaces'])
             self.themeWidget.setChecked(False)
-            self.docFont = window.defaultDocFont
+            self.docFont = default['font']
             self.updateFontLabel()
+            self.lineLimitSpinBox.setValue(default['lineLimit'])
             
             # Re-create file association fields with the default programs.
             self.populateProgsAndExts(self.parent().defaultPrograms)

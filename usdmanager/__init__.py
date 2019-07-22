@@ -163,7 +163,6 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         - AddressBar file completer has problems occasionally.
         - Figure out why network printers aren't showing up. Linux or DWA
           issue? macOS and Windows are fine.
-        - When reading in a USDZ file, the progress bar gets stuck.
         - Qt.py problems:
 
           - PyQt5
@@ -208,7 +207,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         # externally. The user's preferred programs are stored in
         # self.programs.
         self.defaultPrograms = {x: "" for x in USD_EXTS}
-        self.defaultPrograms.update(self.app.appConfig.get("defaultPrograms", {}))
+        self.defaultPrograms.update(self.app.DEFAULTS['defaultPrograms'])
         self.programs = self.defaultPrograms
         self.masterHighlighters = {}
         
@@ -247,12 +246,14 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         self.baseInstance = utils.loadUiWidget('main_window.ui', self)
         
         # You now have access to the widgets defined in the ui file.
-        self.defaultDocFont = QtGui.QFont()
-        self.defaultDocFont.setStyleHint(QtGui.QFont.Courier)
-        self.defaultDocFont.setFamily("Monospace")
-        self.defaultDocFont.setPointSize(9)
-        self.defaultDocFont.setBold(False)
-        self.defaultDocFont.setItalic(False)
+        # Update some app defaults that required the GUI to be created first.
+        defaultDocFont = QtGui.QFont()
+        defaultDocFont.setStyleHint(QtGui.QFont.Courier)
+        defaultDocFont.setFamily("Monospace")
+        defaultDocFont.setPointSize(9)
+        defaultDocFont.setBold(False)
+        defaultDocFont.setItalic(False)
+        self.app.DEFAULTS['font'] = defaultDocFont
         
         self.readSettings()
         self.compileLinkRegEx()
@@ -288,13 +289,13 @@ span.badLink {{color:#F33}}
 </style></head><body style="white-space:pre">{}</body></html>"""
         
         searchPaths = QtGui.QIcon.themeSearchPaths()
-        extraSearchPaths = [x for x in self.app.appConfig.get("themeSearchPaths", []) if x not in searchPaths]
+        extraSearchPaths = [x for x in self.app.DEFAULTS['themeSearchPaths'] if x not in searchPaths]
         if extraSearchPaths:
             searchPaths = extraSearchPaths + searchPaths
             QtGui.QIcon.setThemeSearchPaths(searchPaths)
         
         # Set the preferred theme name for some non-standard icons.
-        QtGui.QIcon.setThemeName(self.app.appConfig.get("iconTheme", "crystal_project"))
+        QtGui.QIcon.setThemeName(self.app.DEFAULTS['iconTheme'])
         
         # Try to adhere to the freedesktop icon standards (https://standards.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html).
         # Some icons are preferred from the crystal_project set, which sadly follows different naming standards.
@@ -633,27 +634,27 @@ span.badLink {{color:#F33}}
         """ Read in user config settings.
         """
         logger.debug("Reading user settings from {}".format(self.config.fileName()))
-        # Get basic preferences.
-        # TODO: Read some of these from the same places as the preferences dialog so we don't have to maintain defaults in 2 places.
+        default = self.app.DEFAULTS
         self.preferences = {
-            'parseLinks': self.config.boolValue("parseLinks", True),
-            'newTab': self.config.boolValue("newTab", False),
-            'syntaxHighlighting': self.config.boolValue("syntaxHighlighting", True),
-            'teletype': self.config.boolValue("teletype", True),
-            'lineNumbers': self.config.boolValue("lineNumbers", True),
-            'showAllMessages': self.config.boolValue("showAllMessages", True),
-            'showHiddenFiles': self.config.boolValue("showHiddenFiles", False),
-            'font': self.config.value("font", self.defaultDocFont),
-            'fontSizeAdjust': int(self.config.value("fontSizeAdjust", 0)),
-            'findMatchCase': self.config.boolValue("findMatchCase", self.checkBoxMatchCase.isChecked()),
-            'includeVisible': self.config.boolValue("includeVisible", self.actionIncludePanel.isChecked()),
-            'lastOpenWithStr': self.config.value("lastOpenWithStr", ""),
-            'textEditor': self.config.value("textEditor", os.getenv("EDITOR", self.app.appConfig.get("textEditor", "nedit"))),
-            'diffTool': self.config.value("diffTool", self.app.appConfig.get("diffTool", "xdiff")),
-            'autoCompleteAddressBar': self.config.boolValue("autoCompleteAddressBar", True),
-            'useSpaces': self.config.boolValue("useSpaces", True),
-            'tabSpaces': int(self.config.value("tabSpaces", 4)),
-            'theme': self.config.value("theme", None),
+            'parseLinks': self.config.boolValue("parseLinks", default['parseLinks']),
+            'newTab': self.config.boolValue("newTab", default['newTab']),
+            'syntaxHighlighting': self.config.boolValue("syntaxHighlighting", default['syntaxHighlighting']),
+            'teletype': self.config.boolValue("teletype", default['teletype']),
+            'lineNumbers': self.config.boolValue("lineNumbers", default['lineNumbers']),
+            'showAllMessages': self.config.boolValue("showAllMessages", default['showAllMessages']),
+            'showHiddenFiles': self.config.boolValue("showHiddenFiles", default['showHiddenFiles']),
+            'font': self.config.value("font", default['font']),
+            'fontSizeAdjust': int(self.config.value("fontSizeAdjust", default['fontSizeAdjust'])),
+            'findMatchCase': self.config.boolValue("findMatchCase", default['findMatchCase']),
+            'includeVisible': self.config.boolValue("includeVisible", default['includeVisible']),
+            'lastOpenWithStr': self.config.value("lastOpenWithStr", default['lastOpenWithStr']),
+            'textEditor': self.config.value("textEditor", default['textEditor']),
+            'diffTool': self.config.value("diffTool", default['diffTool']),
+            'autoCompleteAddressBar': self.config.boolValue("autoCompleteAddressBar", default['autoCompleteAddressBar']),
+            'useSpaces': self.config.boolValue("useSpaces", default['useSpaces']),
+            'tabSpaces': int(self.config.value("tabSpaces", default['tabSpaces'])),
+            'theme': self.config.value("theme", default['theme']),
+            'lineLimit': int(self.config.value("lineLimit", default['lineLimit'])),
         }
         
         # Read 'programs' settings object into self.programs.
@@ -736,6 +737,7 @@ span.badLink {{color:#F33}}
         self.config.setValue("useSpaces", self.preferences['useSpaces'])
         self.config.setValue("tabSpaces", self.preferences['tabSpaces'])
         self.config.setValue("theme", self.preferences['theme'])
+        self.config.setValue("lineLimit", self.preferences['lineLimit'])
         
         # Write self.programs to settings object
         exts = self.programs.keys()
@@ -1918,11 +1920,14 @@ span.badLink {{color:#F33}}
         dlg = PreferencesDialog(self)
         # Open dialog.
         if dlg.exec_() == dlg.Accepted:
-            # Save new preferences.
+            # Users currently have to refresh to see these changes.
             self.preferences['parseLinks'] = dlg.getPrefParseLinks()
-            self.preferences['newTab'] = dlg.getPrefNewTab()
             self.preferences['syntaxHighlighting'] = dlg.getPrefSyntaxHighlighting()
             self.preferences['teletype'] = dlg.getPrefTeletypeConversion()
+            self.preferences['theme'] = dlg.getPrefTheme()
+            
+            # These changes do not require the user to refresh any tabs to see the change.
+            self.preferences['newTab'] = dlg.getPrefNewTab()
             self.preferences['lineNumbers'] = dlg.getPrefLineNumbers()
             self.preferences['showAllMessages'] = dlg.getPrefShowAllMessages()
             self.preferences['showHiddenFiles'] = dlg.getPrefShowHiddenFiles()
@@ -1932,7 +1937,7 @@ span.badLink {{color:#F33}}
             self.preferences['font'] = dlg.getPrefFont()
             self.preferences['useSpaces'] = dlg.getPrefUseSpaces()
             self.preferences['tabSpaces'] = dlg.getPrefTabSpaces()
-            self.preferences['theme'] = dlg.getPrefTheme()
+            self.preferences['lineLimit'] = dlg.getPrefLineLimit()
             
             # Update font and line number visibility in all tabs.
             self.tabWidget.setFont(self.preferences['font'])
@@ -1964,9 +1969,6 @@ span.badLink {{color:#F33}}
             else:
                 self.addressBar.setCompleter(QtWidgets.QCompleter())
             
-            if not self.currTab.isDirty():
-                self.refreshTab()
-            
             self.writeSettings()
     
     @Slot(int)
@@ -1977,7 +1979,7 @@ span.badLink {{color:#F33}}
             checked : `int`
                 State of checkbox.
         """
-        checked = checked & QtCore.Qt.Checked
+        checked = checked == QtCore.Qt.Checked
         if checked != self.preferences['findMatchCase']:
             self.preferences['findMatchCase'] = checked
             for lang, h in self.masterHighlighters.iteritems():
@@ -2185,7 +2187,7 @@ span.badLink {{color:#F33}}
             self.menuRecentlyClosedTabs.setEnabled(False)
         
         # Update settings in the recently re-opened tab that may have changed.
-        if self.preferences['font'] != self.defaultDocFont:
+        if self.preferences['font'] != self.app.DEFAULTS['font']:
             tab.textBrowser.setFont(self.preferences['font'])
             tab.textEditor.setFont(self.preferences['font'])
         tab.lineNumbers.setVisible(self.preferences['lineNumbers'])
@@ -2348,7 +2350,7 @@ span.badLink {{color:#F33}}
     def launchUsdView(self):
         """ Launch the current file in usdview.
         """
-        app = self.app.appConfig.get("usdview", "usdview")
+        app = self.app.DEFAULTS['usdview']
         path = self.currTab.getCurrentPath()
         # Files with spaces have to be double-quoted on Windows for usdview.
         if os.name == "nt":
@@ -2557,9 +2559,9 @@ span.badLink {{color:#F33}}
             vScrollPos : `int`
                 Vertical scroll bar position.
         """
-        # Check if the current tab is dirty before doing anything.
+        # If we're staying in the current tab, check if the tab is dirty before doing anything.
         # Perform save operations if necessary.
-        if not self.dirtySave():
+        if not newTab and not self.dirtySave():
             return True
         
         # Re-cast the QUrl so any query strings are evaluated properly.
@@ -2681,6 +2683,8 @@ span.badLink {{color:#F33}}
                         layer = utils.queryItemValue(link, "layer")
                         dest = utils.unzip(fileStr, layer, self.app.tmpDir)
                         self.restoreOverrideCursor()
+                        self.statusbar.removeWidget(loadingProgressBar)
+                        self.statusbar.removeWidget(loadingProgressLabel)
                         return self.setSource(QtCore.QUrl(dest))
                     else:
                         if ext == "usda":
@@ -2709,11 +2713,13 @@ span.badLink {{color:#F33}}
             
             # TODO: Figure out a better way to handle streaming text for large files like Crate geometry.
             # Large chunks of text (e.g. 2.2 billion characters) will cause Qt to segfault when creating a QString.
-            if length > LINE_LIMIT:
-                length = LINE_LIMIT
+            lineLimit = self.preferences['lineLimit']
+            if length > lineLimit:
+                length = lineLimit
                 truncated = True
                 fileText = fileText[:length]
-                warning = "Extremely large file! Capping display at {:,d} lines.".format(LINE_LIMIT)
+                warning = "Extremely large file! Capping display at {:,d} lines. You can edit this cap in the "\
+                          "Advanced tab of Preferences.".format(lineLimit)
             
             loadingProgressBar.setMaximum(length - 1)
             if self.stopLoadingTab:
@@ -4274,13 +4280,40 @@ class App(QtCore.QObject):
         try:
             logger.info("Loading app config from {}".format(appConfigPath))
             with open(appConfigPath) as f:
-                self.appConfig = json.load(f)
+                appConfig = json.load(f)
         except Exception as e:
             logger.error("Failed to load app config from {}: {}".format(appConfigPath, e))
-            self.appConfig = {}
+            appConfig = {}
+        
+        # Define app defaults that we use when the user preference doesn't exist and when resetting preferences in the
+        # Preferences dialog.
+        self.DEFAULTS = {
+            'autoCompleteAddressBar': True,
+            'defaultPrograms': appConfig.get("defaultPrograms", {}),
+            'diffTool': appConfig.get("diffTool", "xdiff"),
+            'findMatchCase': False,
+            'fontSizeAdjust': 0,
+            'iconTheme': appConfig.get("iconTheme", "crystal_project"),
+            'includeVisible': True,
+            'lastOpenWithStr': "",
+            'lineLimit': LINE_LIMIT,
+            'lineNumbers': True,
+            'newTab': False,
+            'parseLinks': True,
+            'showAllMessages': True,
+            'showHiddenFiles': False,
+            'syntaxHighlighting': True,
+            'tabSpaces': 4,
+            'teletype': True,
+            'textEditor': os.getenv("EDITOR", appConfig.get("textEditor", "nedit")),
+            'theme': None,
+            'themeSearchPaths': appConfig.get("themeSearchPaths", []),
+            'usdview': appConfig.get("usdview", "usdview"),
+            'useSpaces': True,
+        }
         
         # Documentation URL.
-        self.appURL = self.appConfig.get("appURL", "https://github.com/dreamworksanimation/usdmanager")
+        self.appURL = appConfig.get("appURL", "https://github.com/dreamworksanimation/usdmanager")
         
         # Create a main window.
         window = self.newWindow()

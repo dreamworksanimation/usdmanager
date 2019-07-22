@@ -168,7 +168,12 @@ def usdcat(inputFile, outputFile, format=None):
     :Raises ValueError:
         If invalid format given compared to output file extension.
     """
-    cmd = "usdcat {} -o {}".format(inputFile, outputFile)
+    if os.name == "nt":
+        # Files with spaces have to be double-quoted on Windows.
+        cmd = 'usdcat "{}" -o "{}"'.format(inputFile, outputFile)
+    else:
+        cmd = 'usdcat {} -o {}'.format(inputFile, outputFile)
+    
     if format and outputFile.endswith(".usd"):
         # For usdcat, use of --usdFormat requires output file end with '.usd' extension.
         cmd += " --usdFormat {}".format(format)
@@ -193,10 +198,20 @@ def usdzip(inputs, dest):
     :Raises OSError:
         If usdzip fails
     """
-    if type(inputs) is list:
-        inputs = " ".join(inputs)
-    cmd = "usdzip {} {}".format(inputs, dest)
-    logger.debug(cmd)
+    if os.name == "nt":
+        # Files with spaces have to be double-quoted on Windows.
+        if type(inputs) is list:
+            inputs = '" "'.join(inputs)
+        cmd = 'usdzip "{}" "{}"'.format(inputs, dest)
+        logger.debug(cmd)
+    else:
+        cmd = ["usdzip"]
+        if type(inputs) is list:
+            cmd += inputs
+        else:
+            cmd.append(inputs)
+        cmd.append(dest)
+        logger.debug(subprocess.list2cmdline(cmd))
     try:
         subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as e:
@@ -219,18 +234,19 @@ def unzip(path, layer=None, tmpDir=None):
         Destination file
     :Rtype:
         `str`
-    :Raises OSError:
-        If unzip fails
+    :Raises zipfile.BadZipfile:
+        For bad ZIP files
+    :Raises zipfile.LargeZipFile:
+        When a ZIP file would require ZIP64 functionality but that has not been enabled
     :Raises ValueError:
         If default layer not found
     """
+    from zipfile import ZipFile
+    
     destDir = tempfile.mkdtemp(prefix="usdmanager_usdz_", dir=tmpDir)
-    cmd = "unzip {} -d {}".format(path, destDir)
-    logger.debug(cmd)
-    try:
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
-    except subprocess.CalledProcessError as e:
-        raise OSError("Failed to unzip: {}".format(e.output))
+    logger.debug("Extracting {} to {}".format(path, destDir))
+    with ZipFile(path, 'r') as zipRef:
+        zipRef.extractall(destDir)
     
     if layer is not None:
         destFile = os.path.join(destDir, layer)
