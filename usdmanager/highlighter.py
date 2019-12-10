@@ -176,11 +176,11 @@ class MasterHighlighter(QtCore.QObject):
             QtCore.Qt.darkGreen,
             QtGui.QColor(25, 255, 25)
         ]
-        # Matches a comment from a pound sign to the end of the line.
-        # BUG: TODO: Needs to recognize when comment is part of a quoted string and not an actual comment.
+        # Matches a comment from the starting point to the end of the line,
+        # if not part of a single- or double-quoted string.
         if self.comment:
             self.ruleComment = [
-                re.escape(self.comment) + ".*$",
+                "^(?:[^\"']|\"[^\"]*\"|'[^']*')*(" + re.escape(self.comment) + ".*)$",  # TODO: This should probably be language-specific instead of assumed for all.
                 QtCore.Qt.gray,
                 QtCore.Qt.gray,
                 None,  # Not bold
@@ -228,7 +228,9 @@ class MasterHighlighter(QtCore.QObject):
         # Multi-line comment.
         if self.multilineComment:
             self.multilineRules.append(createMultilineRule(
-                re.escape(self.multilineComment[0]),
+                # Make sure the start of the comment isn't inside a single- or double-quoted string.
+                # TODO: This should probably be language-specific instead of assumed for all.
+                "^(?:[^\"']|\"[^\"]*\"|'[^']*')*(" + re.escape(self.multilineComment[0]) + ")",
                 re.escape(self.multilineComment[1]),
                 QtCore.Qt.gray,
                 italic=True))
@@ -335,7 +337,13 @@ class Highlighter(QtGui.QSyntaxHighlighter):
         for pattern, frmt in self.master.rules:
             i = pattern.indexIn(text)
             while i >= 0:
-                length = pattern.matchedLength()
+                # If we have a grouped match, only highlight that first group and not the chars before it.
+                pos1 = pattern.pos(1)
+                if pos1 != -1:
+                    length = pattern.matchedLength() - (pos1 - i)
+                    i = pos1
+                else:
+                    length = pattern.matchedLength()
                 self.setFormat(i, length, frmt)
                 i = pattern.indexIn(text, i + length)
         
@@ -348,7 +356,13 @@ class Highlighter(QtGui.QSyntaxHighlighter):
             else:
                 # Look for the start of the expression.
                 startIndex = startExpr.indexIn(text)
-                add = startExpr.matchedLength()
+                # If we have a grouped match, only highlight that first group and not the chars before it.
+                pos1 = startExpr.pos(1)
+                if pos1 != -1:
+                    add = startExpr.matchedLength() - (pos1 - startIndex)
+                    startIndex = pos1
+                else:
+                    add = startExpr.matchedLength()
             
             # If we're inside the match, look for the end expression.
             while startIndex >= 0:
@@ -364,10 +378,17 @@ class Highlighter(QtGui.QSyntaxHighlighter):
                     self.setCurrentBlockState(state)
                 
                 # Highlight the portion of this line that's inside the multiline rule.
+                # TODO: This doesn't actually ensure we hit the closing expression before highlighting.
                 self.setFormat(startIndex, length, frmt)
                 
                 # Look for the next match.
                 startIndex = startExpr.indexIn(text, startIndex + length)
+                pos1 = startExpr.pos(1)
+                if pos1 != -1:
+                    add = startExpr.matchedLength() - (pos1 - startIndex)
+                    startIndex = pos1
+                else:
+                    add = startExpr.matchedLength()
             
             if self.currentBlockState() == state:
                 break

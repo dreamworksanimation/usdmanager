@@ -52,7 +52,8 @@ except ImportError:
 
 def expandPath(path, parentPath=None, sdf_format_args=None):
     """ Expand and normalize a path that may have variables in it.
-
+    Do not use this for URLs with query strings.
+    
     :Parameters:
         path : `str`
             File path
@@ -66,6 +67,8 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
     :Rtype:
         `str`
     """
+    path = os.path.expanduser(os.path.normpath(path))
+    
     if resolver is not None:
         try:
             resolver.ConfigureResolverForAsset(path)
@@ -80,7 +83,7 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
                 return resolved
     
     # Return this best-attempt if all else fails.
-    return os.path.expandvars(os.path.expanduser(os.path.normpath(path)))
+    return os.path.expandvars(path)
 
 
 def expandUrl(path, parentPath=None):
