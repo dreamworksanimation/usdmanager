@@ -106,8 +106,8 @@ if Qt.IsPySide2 and not hasattr(QtCore.QUrl, "path"):
 
 
 class PathCacheDict(defaultdict):
-    """ Cache if file paths referenced more than once in a file exist, so we
-    don't check on disk over and over. """
+    """ Cache if file paths referenced more than once in a file exist, so we don't check on disk over and over.
+    """
     def __missing__(self, key):
         self[key] = os.path.exists(key)
         return self[key]
@@ -127,61 +127,49 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
       - Support nested references on read
       - Ability to write and repackage as usdz
 
-    - Add a preference for which files to enable teletype for
-      (currently hard-coded to .log and .txt files).
-    - Plug-ins based on active file type
-      (ABC-specific commands, USD commands, etc.)
-    - Link matching RegEx based on active file type instead of all using the
-      same rules. Different extensions to search for based on file type, too.
+    - Add a preference for which files to enable teletype for (currently hard-coded to .log and .txt files).
+    - Plug-ins based on active file type (ABC-specific commands, USD commands, etc.)
+    - Link matching RegEx based on active file type instead of all using the same rules.
+      Different extensions to search for based on file type, too.
     - Cache converted crate files or previously read in files?
-    - Add customized print options like name of file and date headers, similar
-      to printing a web page.
+    - Add customized print options like name of file and date headers, similar to printing a web page.
     - Move setSource link parsing to a thread?
-    - From Pixar: There's one feature in a tool our sim dept wrote that might
-      be useful to incorporate into your browser, which can help immensely
-      for big files, and it's to basically allow filtering of what gets
-      displayed for the usd file's contents. Not just like pattern matching
-      so only certain prims/properties get shown (though that is also useful),
-      but things like "don't show timeSamples" or "only show first and last
-      values for each array with an ellipsis in the middle".
-    - Dark theme syntax highlighting could use work. The bare minimum to get
-      this working was done.
-    - Going from Edit mode back to Browse mode shouldn't reload the document
-      if the file on disk hasn't changed. Not sure why this is slower than
-      just loading the browse tab in the first place...
+    - Move file status to a thread?
+    - From Pixar: There's one feature in a tool our sim dept wrote that might be useful to incorporate into your
+      browser, which can help immensely for big files, and it's to basically allow filtering of what gets displayed
+      for the usd file's contents. Not just like pattern matching so only certain prims/properties get shown (though
+      that is also useful), but things like "don't show timeSamples" or "only show first and last values for each array
+      with an ellipsis in the middle".
+    - Dark theme syntax highlighting could use work. The bare minimum to get this working was done.
+    - Going from Edit mode back to Browse mode shouldn't reload the document if the file on disk hasn't changed.
+      Not sure why this is slower than just loading the browse tab in the first place...
     - More detailed history that persists between sessions.
     - Cross-platform testing:
 
       - Windows mostly untested.
       - Mac could use more testing and work with icons and theme.
 
-    - Remember scroll position per file so going back in history jumps you to
-      approximately where you were before.
+    - Remember scroll position per file so going back in history jumps you to approximately where you were before.
+    - Missing file links should allow you to easily create the file.
+    - When opening a * file path, don't open file browser dialog if encountering files + directories in the glob
 
     Known issues:
 
         - AddressBar file completer has problems occasionally.
-        - Figure out why network printers aren't showing up. Linux or DWA
-          issue? macOS and Windows are fine.
+        - Figure out why network printers aren't showing up. Linux or DWA issue? macOS and Windows are fine.
         - Qt.py problems:
 
           - PyQt5
 
             - Non-critical messages
 
-              - QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to
-                '/tmp/runtime-mdsandell'
-              - QXcbConnection: XCB error: 3 (BadWindow), sequence: 878,
-                resource id: 26166399, major code: 40 (TranslateCoords),
-                minor code: 0
+              - QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-mdsandell'
+              - QXcbConnection: XCB error: 3 (BadWindow), sequence: 878, resource id: 26166399, major code: 40
+                (TranslateCoords), minor code: 0
 
           - PySide2
 
-            - Preferences dialog doesn't center on main window, can't load
-              via loadUiType
-
-        - Syntax highlighting for USD and Python incorrectly thinks # is a
-          comment even if the # is in a quoted string.
+            - Preferences dialog doesn't center on main window, can't load via loadUiType
 
     """
     
@@ -211,8 +199,8 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         self.programs = self.defaultPrograms
         self.masterHighlighters = {}
         
+        self._darkTheme = False
         self.contextMenuPos = None
-        self.overrideCursorSet = False
         self.findDlg = None
         self.lastOpenFileDir = ""
         self.linkHighlighted = QtCore.QUrl("")
@@ -240,8 +228,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
                     self.plugins.append(plugin)
     
     def setupUi(self):
-        """ Create and lay out the widgets defined in the ui file,
-        then add additional modifications to the UI.
+        """ Create and lay out the widgets defined in the ui file, then add additional modifications to the UI.
         """
         self.baseInstance = utils.loadUiWidget('main_window.ui', self)
         
@@ -262,7 +249,9 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         # Currently, we set this once, and the user must restart the application to see changes.
         userThemeName = self.app.opts['theme'] or self.preferences['theme']
         if userThemeName == "dark":
+            self._darkTheme = True
             # Set usdview-based stylesheet.
+            logger.debug("Setting dark theme")
             stylesheet = resource_filename(__name__, "usdviewstyle.qss")
             with open(stylesheet) as f:
                 # Qt style sheet accepts only forward slashes as path separators.
@@ -697,7 +686,7 @@ span.badLink {{color:#F33}}
             path = self.config.value("path")
             if path:
                 action = RecentFile(path, self.menuOpenRecent)
-                action.openFile.connect(self.setSource)
+                action.openFile.connect(self.openRecent)
                 self.menuOpenRecent.addAction(action)
         self.config.endArray()
         if self.menuOpenRecent.actions():
@@ -961,10 +950,19 @@ span.badLink {{color:#F33}}
     
     @Slot()
     def openFileDialogToCurrentPath(self):
-        """ Show the Open File dialog and open any selected files,
-        pre-selecting the current file (if any).
+        """ Show the Open File dialog and open any selected files, pre-selecting the current file (if any).
         """
         self.openFileDialog(self.currTab.getCurrentPath())
+    
+    @Slot(str)
+    def openRecent(self, path):
+        """ Open an item from the Open Recent menu in a new tab.
+        
+        :Parameters:
+            path : `str`
+                File path
+        """
+        self.setSource(QtCore.QUrl(path), newTab=True)
     
     def saveFile(self, filePath, fileFormat=FILE_FORMAT_NONE, _checkUsd=True):
         """ Save the current file as the given filePath.
@@ -1198,8 +1196,7 @@ span.badLink {{color:#F33}}
     
     @Slot()
     def saveTab(self):
-        """ If the file already has a name, save it;
-        otherwise, get a filename and save it.
+        """ If the file already has a name, save it; otherwise, get a filename and save it.
         
         :Returns:
             If saved or not.
@@ -1209,8 +1206,7 @@ span.badLink {{color:#F33}}
         filePath = self.currTab.getCurrentPath()
         if filePath:
             return self.saveFile(filePath)
-        else:
-            return self.saveFileAs()
+        return self.saveFileAs()
     
     @Slot(bool)
     def printDialog(self, checked=False):
@@ -1256,12 +1252,10 @@ span.badLink {{color:#F33}}
             checked : `bool`
                 For signal only
             index : `int` | None
-                Try to close this specific tab instead of where the context
-                menu originated.
+                Try to close this specific tab instead of where the context menu originated.
         :Returns:
             If the tab was closed or not.
-            If the tab needed to be saved, for example, and the user cancelled,
-            this returns False.
+            If the tab needed to be saved, for example, and the user cancelled, this returns False.
         :Rtype:
             `bool`
         """
@@ -1474,6 +1468,8 @@ span.badLink {{color:#F33}}
         if not self.dirtySave():
             return False
         
+        refreshed = False
+        
         # Toggle edit mode
         self.currTab.inEditMode = not self.currTab.inEditMode
         if self.currTab.inEditMode:
@@ -1490,7 +1486,7 @@ span.badLink {{color:#F33}}
             # Set browser's scroll position to editor's position.
             hScrollPos = self.currTab.textEditor.horizontalScrollBar().value()
             vScrollPos = self.currTab.textEditor.verticalScrollBar().value()
-            self.refreshTab()
+            refreshed = self.refreshTab()
             self.currTab.textEditor.setVisible(False)
             self.currTab.textBrowser.setVisible(True)
             self.currTab.lineNumbers.setTextWidget(self.currTab.textBrowser)
@@ -1498,10 +1494,12 @@ span.badLink {{color:#F33}}
             self.currTab.textBrowser.horizontalScrollBar().setValue(hScrollPos)
             self.currTab.textBrowser.verticalScrollBar().setValue(vScrollPos)
         
-        # Update highlighter.
-        self.currTab.highlighter.setDocument(self.currTab.getCurrentTextWidget().document())
+        # Don't double-up the below commands if we already refreshed the tab.
+        if not refreshed:
+            # Update highlighter.
+            self.currTab.highlighter.setDocument(self.currTab.getCurrentTextWidget().document())
+            self.updateEditButtons()
         
-        self.updateEditButtons()
         self.editModeChanged.emit(self.currTab.inEditMode)
         return True
     
@@ -2082,13 +2080,19 @@ span.badLink {{color:#F33}}
     @Slot()
     def refreshTab(self):
         """ Refresh the current tab.
+        
+        :Returns:
+            If the tab was reloaded successfully.
+        :Rtype:
+            `bool`
         """
         # Only refresh the tab if the refresh action is enabled, since the F5 shortcut is never disabled,
         # and methods sometimes call this directly even though we do not want to refresh.
         if self.actionRefresh.isEnabled():
-            self.setSource(self.currTab.getCurrentUrl(), isNewFile=False,
-                           hScrollPos=self.currTab.getCurrentTextWidget().horizontalScrollBar().value(),
-                           vScrollPos=self.currTab.getCurrentTextWidget().verticalScrollBar().value())
+            return self.setSource(self.currTab.getCurrentUrl(), isNewFile=False,
+                hScrollPos=self.currTab.getCurrentTextWidget().horizontalScrollBar().value(),
+                vScrollPos=self.currTab.getCurrentTextWidget().verticalScrollBar().value())
+        return False
     
     @Slot()
     def stopTab(self):
@@ -2476,15 +2480,13 @@ span.badLink {{color:#F33}}
             cursor
                 Qt cursor
         """
-        if not self.overrideCursorSet:
-            self.overrideCursorSet = True
+        if not QtWidgets.QApplication.overrideCursor():
             QtWidgets.QApplication.setOverrideCursor(cursor)
     
     def restoreOverrideCursor(self):
         """ If an override cursor is currently set, restore the previous cursor.
         """
-        if self.overrideCursorSet:
-            self.overrideCursorSet = False
+        if QtWidgets.QApplication.overrideCursor():
             QtWidgets.QApplication.restoreOverrideCursor()
     
     @contextmanager
@@ -2558,6 +2560,10 @@ span.badLink {{color:#F33}}
                 Horizontal scroll bar position.
             vScrollPos : `int`
                 Vertical scroll bar position.
+        :Returns:
+            True if the file was loaded successfully (or was dirty but the user cancelled the save prompt).
+        :Rtype:
+            `bool`
         """
         # If we're staying in the current tab, check if the tab is dirty before doing anything.
         # Perform save operations if necessary.
@@ -2820,7 +2826,7 @@ span.badLink {{color:#F33}}
                             raise ValueError
                     except ValueError:
                         # File doesn't exist or path cannot be resolved.
-                        # Color it red, but don't make it an actual link.
+                        # Color it red.
                         htmlLink = '<span title="File not found" class="tooltip badLink">{}</span>'.format(linkPath)
                     # Calculate difference in length between new link and original text so that we know where
                     # in the string to start the replacement when we have multiple matches in the same line.
@@ -3038,21 +3044,21 @@ span.badLink {{color:#F33}}
         
         self.updateButtons()
         
-        # Highlighting can be very slow on bigger files. Don't worry about
-        # updating it if we're closing tabs while quitting the app.
         if not self.quitting:
+            # Highlighting can be very slow on bigger files. Don't worry about
+            # updating it if we're closing tabs while quitting the app.
             self.findHighlightAll()
     
     def isDarkTheme(self):
-        """ Check if any dark theme is active based on the background lightness.
+        """ Check if any dark theme is active based on launch preference and the background lightness.
         
         :Returns:
-            True if the lightness factor of the window background is less than 0.5.
-            The 0.5 threshold to determine if it's dark is completely arbitrary.
+            True if launched with the dark theme preference or the lightness factor of the window background is less
+            than 0.5. The 0.5 threshold to determine if it's dark is completely arbitrary.
         :Rtype:
             `bool`
         """
-        return self.palette().window().color().lightnessF() < 0.5
+        return self._darkTheme or self.palette().window().color().lightnessF() < 0.5
     
     def updateButtons(self):
         """ Update button states, text fields, and other GUI elements.
@@ -3061,8 +3067,8 @@ span.badLink {{color:#F33}}
         self.breadcrumb.setText(self.currTab.breadcrumb)
         self.updateEditButtons()
         
+        title = self.app.appDisplayName
         if self.currTab.isNewTab:
-            self.setWindowTitle(self.app.appDisplayName)
             self.actionBack.setEnabled(False)
             self.actionForward.setEnabled(False)
             self.actionRefresh.setEnabled(False)
@@ -3070,13 +3076,14 @@ span.badLink {{color:#F33}}
             self.actionTextEditor.setEnabled(False)
             self.actionOpenWith.setEnabled(False)
         else:
-            self.setWindowTitle("{} - {}".format(self.app.appDisplayName, self.tabWidget.tabText(self.tabWidget.currentIndex())))
+            title += " - " + self.tabWidget.tabText(self.tabWidget.currentIndex())
             self.actionBack.setEnabled(self.currTab.isBackwardAvailable())
             self.actionForward.setEnabled(self.currTab.isForwardAvailable())
             self.actionRefresh.setEnabled(True)
             self.actionFileInfo.setEnabled(True)
             self.actionTextEditor.setEnabled(True)
             self.actionOpenWith.setEnabled(True)
+        self.setWindowTitle(title)
         
         path = self.currTab.getCurrentPath()
         usd = utils.isUsdFile(path)
@@ -3098,8 +3105,6 @@ span.badLink {{color:#F33}}
             self.actionEdit.setVisible(False)
             self.actionBrowse.setVisible(True)
             self.actionSave.setEnabled(True)
-            self.actionSaveAs.setEnabled(True)
-            self.currTab.textEditor.setUndoRedoEnabled(True)
             self.actionPaste.setEnabled(self.currTab.textEditor.canPaste())
             self.actionUndo.setEnabled(self.currTab.textEditor.document().isUndoAvailable())
             self.actionRedo.setEnabled(self.currTab.textEditor.document().isRedoAvailable())
@@ -3113,7 +3118,6 @@ span.badLink {{color:#F33}}
             self.actionEdit.setVisible(True)
             self.actionBrowse.setVisible(False)
             self.actionSave.setEnabled(False)
-            # allow to always save as a new file. self.actionSaveAs.setEnabled(False)
             self.actionUndo.setEnabled(False)
             self.actionRedo.setEnabled(False)
             self.actionCut.setEnabled(False)
@@ -3269,11 +3273,11 @@ span.badLink {{color:#F33}}
                 tipSuffix += " (binary)"
             elif self.currTab.fileFormat == FILE_FORMAT_USDZ:
                 tipSuffix += " (zip)"
-        text = "*%s*" % fileName if dirty else fileName
+        text = "*{}*".format(fileName) if dirty else fileName
         idx = self.tabWidget.currentIndex()
         self.tabWidget.setTabText(idx, text)
-        self.tabWidget.setTabToolTip(idx, "{}{}".format(text, tipSuffix))
-        self.setWindowTitle("%s - %s" % (self.app.appDisplayName, text))
+        self.tabWidget.setTabToolTip(idx, text + tipSuffix)
+        self.setWindowTitle("{} - {}".format(self.app.appDisplayName, text))
         self.actionDiffFile.setEnabled(dirty)
     
     def dirtySave(self):
@@ -3296,8 +3300,7 @@ span.badLink {{color:#F33}}
             if btn == QtWidgets.QMessageBox.Cancel:
                 return False
             elif btn == QtWidgets.QMessageBox.Save:
-                if not self.saveTab():
-                    return False
+                return self.saveTab()
             else: # Discard
                 self.setDirtyTab(False)
         return True
