@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from usdmanager import App
+from usdmanager import run
 
 if __name__ == "__main__":
-    App().run()
+    run()
