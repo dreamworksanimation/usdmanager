@@ -141,7 +141,7 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
         usdFileName : `str`
             Binary USD file path
         tmpDir : `str` | None
-            Temp directory to create the new unzipped directory within
+            Temp directory to create the new file within
     :Returns:
         Temporary file name
     :Rtype:
@@ -195,9 +195,6 @@ def usdzip(inputs, dest):
             Input file name(s). String or list of strings
         dest : `str`
             Output directory (for unzip) or file name
-        format : `str` | None
-            Output USD format (e.g. usda or usdc)
-            Only used if outputFile's extension is .usd
     :Raises OSError:
         If usdzip fails
     """
@@ -221,28 +218,22 @@ def usdzip(inputs, dest):
         raise OSError("Failed to zip: {}".format(e.output))
 
 
-# TODO: Support nested references (e.g. @set.usdz[areas/shire.usdz[architecture/BilboHouse/Table.usd]]@)
-def unzip(path, layer=None, tmpDir=None):
+def unzip(path, tmpDir=None):
     """ Unzip a usdz format file to a temporary directory.
     
     :Parameters:
         path : `str`
             Input .usdz file
-        layer : `str` | None
-            Default layer within file (e.g. the portion within the square brackets here:
-            @foo.usdz[path/to/file/within/package.usd]@)
         tmpDir : `str` | None
             Temp directory to create the new unzipped directory within
     :Returns:
-        Destination file
+        Destination directory for unzipped usdz
     :Rtype:
         `str`
     :Raises zipfile.BadZipfile:
         For bad ZIP files
     :Raises zipfile.LargeZipFile:
         When a ZIP file would require ZIP64 functionality but that has not been enabled
-    :Raises ValueError:
-        If default layer not found
     """
     from zipfile import ZipFile
     
@@ -250,19 +241,37 @@ def unzip(path, layer=None, tmpDir=None):
     logger.debug("Extracting {} to {}".format(path, destDir))
     with ZipFile(path, 'r') as zipRef:
         zipRef.extractall(destDir)
+    return destDir
+
+
+def getUsdzLayer(usdzDir, layer=None):
+    """ Get a layer from an unzipped usdz archive.
     
+    :Parameters:
+        usdzDir : `str`
+            Unzipped directory path
+        layer : `str`
+            Default layer within file (e.g. the portion within the square brackets here:
+            @foo.usdz[path/to/file/within/package.usd]@)
+    :Returns:
+        Layer file path
+    :Rtype:
+        `str`
+    :Raises ValueError:
+        If default layer not found
+    """
     if layer is not None:
-        destFile = os.path.join(destDir, layer)
+        destFile = os.path.join(usdzDir, layer)
         if os.path.exists(destFile):
             return destFile
         else:
-            raise ValueError("Layer not found in usdz archive: {}".format(layer))
+            raise ValueError("Layer {} not found in usdz archive {}".format(layer, usdzDir))
     
     # TODO: Figure out if this is really the proper way to get the default layer.
-    destFile = os.path.join(destDir, "defaultLayer.usd")
+    destFile = os.path.join(usdzDir, "defaultLayer.usd")
     if os.path.exists(destFile):
         return destFile
-    files = glob(os.path.join(destDir, "*.usd")) + glob(os.path.join(destDir, "*.usd[ac]"))
+    files = glob(os.path.join(usdzDir, "*.usd")) + glob(os.path.join(usdzDir, "*.usd[ac]"))
     if files:
         if len(files) == 1:
             return files[0]

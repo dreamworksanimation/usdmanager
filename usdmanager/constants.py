@@ -42,7 +42,7 @@ HTML_BODY = """<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.o
 <html><head><style type="text/css">
 a.mayNotExist {{color:#C90}}
 a.binary {{color:#69F}}
-span.badLink {{color:red}}
+.badLink {{color:red}}
 </style></head><body style="white-space:pre">{}</body></html>"""
 
 # Set a length limit on parsing for links and syntax highlighting on long lines. 999 chosen semi-arbitrarily to speed
