@@ -227,7 +227,7 @@ def unzip(path, tmpDir=None):
         tmpDir : `str` | None
             Temp directory to create the new unzipped directory within
     :Returns:
-        Destination directory for unzipped usdz
+        Absolute path to destination directory for unzipped usdz
     :Rtype:
         `str`
     :Raises zipfile.BadZipfile:

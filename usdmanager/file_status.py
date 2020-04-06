@@ -45,12 +45,11 @@ class FileStatus(object):
                 If the file was truncated on read, and therefore should never be edited.
         """
         self.url = url if url else QUrl()
-        self.path = url.path() if url else ""
+        self.path = "" if self.url.isEmpty() else self.url.path()
         self.status = self.FILE_NEW
+        self.fileInfo = None
         if update:
             self.updateFileStatus(truncated)
-        else:
-            self.fileInfo = None
     
     def updateFileStatus(self, truncated=False):
         """ Cache the status of a file.
@@ -60,7 +59,9 @@ class FileStatus(object):
                 If the file was truncated on read, and therefore should never be edited.
         """
         if self.path:
-            self.fileInfo = QFileInfo(self.path)
+            if self.fileInfo is None:
+                self.fileInfo = QFileInfo(self.path)
+                self.fileInfo.setCaching(False)
             if truncated:
                 self.status = self.FILE_TRUNCATED
             elif self.fileInfo.isWritable():
