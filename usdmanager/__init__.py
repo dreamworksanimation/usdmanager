@@ -88,6 +88,7 @@ from .preferences_dialog import PreferencesDialog
 # Set up logging.
 logger = logging.getLogger(__name__)
 logging.basicConfig()
+logger.setLevel(logging.WARNING)
 
 
 # Qt.py compatibility: HACK for missing QUrl.path in PySide2 build.
@@ -141,11 +142,14 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
       - Mac could use more testing and work with icons and theme.
 
     - Remember scroll position per file so going back in history jumps you to approximately where you were before.
+    - Add Browse... buttons to select default applications.
+    - Set consistent cross-platform read/write/execute permissions when saving new files
 
     Known issues:
 
         - AddressBar file completer has problems occasionally.
         - Figure out why network printers aren't showing up. Linux or DWA issue? macOS and Windows are fine.
+        - Save As... doesn't add file to recent files or history menus.
         - Qt.py problems:
 
           - PyQt5
@@ -291,7 +295,11 @@ a.binary {{color:#69F}}
         self.exitAction.setIcon(ft("application-exit"))
         self.documentationAction.setIcon(ft("help-browser"))
         self.aboutAction.setIcon(ft("help-about"))
-        self.buttonCloseFind.setIcon(ft("window-close"))  # TODO: Need mac icon
+        icon = ft("window-close")
+        if icon.isNull():
+            self.buttonCloseFind.setText("x")
+        else:
+            self.buttonCloseFind.setIcon(ft("window-close"))
         
         # Try for standard name, then fall back to crystal_project name.
         self.actionBrowse.setIcon(ft("applications-internet", ft("Globe")))
@@ -2769,7 +2777,7 @@ a.binary {{color:#69F}}
                 # Read in the file.
                 usd = False
                 try:
-                    if self.validateFileSize(fileStr):
+                    if self.validateFileSize(fileInfo):
                         if utils.queryItemBoolValue(link, "binary") or ext == "usdc":
                             # Treat this file as a binary USD crate file. Don't bother
                             # checking the first line. If this is a valid ASCII USD
@@ -3043,18 +3051,18 @@ a.binary {{color:#69F}}
         for path in files:
             self.setSource(utils.expandUrl(path, prevPath), newTab=True)
     
-    def validateFileSize(self, path):
+    def validateFileSize(self, info):
         """ If a file's size is above a certain threshold, confirm the user still wants to open the file.
         
         :Parameters:
-            path : `str`
-                File path
+            info : `QtCore.QFileInfo`
+                File info object
         :Returns:
             If we should open the file or not
         :Rtype:
             `bool`
         """
-        size = QtCore.QFileInfo(path).size()
+        size = info.size()
         if size >= 104857600:  # 100 MB
             self.restoreOverrideCursor()
             try:
@@ -3126,9 +3134,9 @@ a.binary {{color:#69F}}
         """ Handle loading the current path in the address bar.
         """
         # Check if text has changed.
-        text = utils.expandUrl(self.addressBar.text().strip())
-        if text != self.currTab.getCurrentUrl():
-            self.setSource(text)
+        url = utils.expandUrl(self.addressBar.text().strip())
+        if url != self.currTab.getCurrentUrl():
+            self.setSource(url)
         else:
             self.refreshTab()
     
@@ -3786,7 +3794,6 @@ class TabWidget(QtWidgets.QTabWidget):
         self.tabBar = TabBar(self)
         self.tabBar.tabMoveRequested.connect(self.moveTab)
         self.setTabBar(self.tabBar)
-        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Tab"), self, self.nextTab)
     
     @Slot(int, int)
     def moveTab(self, fromIndex, toIndex):
@@ -3804,12 +3811,6 @@ class TabWidget(QtWidgets.QTabWidget):
         self.removeTab(fromIndex)
         self.insertTab(toIndex, widget, icon, text)
         self.setCurrentIndex(toIndex)
-    
-    def nextTab(self):
-        """ Switch to the next tab. If on the last tab, go back to the first.
-        """
-        i = self.currentIndex() + 1
-        self.setCurrentIndex(0 if i == self.count() else i)
     
     def setTabIcon(self, index, icon):
         """ Override the default method to set the same icon on our custom action that focuses on or re-opens the
@@ -4585,7 +4586,6 @@ class App(QtCore.QObject):
         
         Call this after each component in the case of misbehaving libraries.
         """
-        logger.setLevel(logging.WARNING)
         if self.opts['info']:
             logger.setLevel(logging.INFO)
         if self.opts['debug']:
@@ -4650,6 +4650,7 @@ class App(QtCore.QObject):
         """
         App._eventLoopStarted = False
         self.cleanup()
+        logging.shutdown()
 
 
 class Settings(QtCore.QSettings):
