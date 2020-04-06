@@ -83,7 +83,7 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
                 return resolved
     
     # Return this best-attempt if all else fails.
-    return os.path.expandvars(path)
+    return QtCore.QDir.cleanPath(os.path.expandvars(path))
 
 
 def expandUrl(path, parentPath=None):
@@ -96,18 +96,49 @@ def expandUrl(path, parentPath=None):
             Parent file path this file is defined in relation to.
             Helps with asset resolution.
     :Returns:
-        Normalized path with variables expanded.
+        URL with normalized path with variables expanded.
     :Rtype:
-        `str`
+        `QtCore.QUrl`
     """
     sdf_format_args = {}
     if "?" in path:
-        sdf_format_args.update(sdfQuery(QtCore.QUrl(path)))
+        sdf_format_args.update(sdfQuery(QtCore.QUrl.fromLocalFile(path)))  # TODO: We may not want fromLocalFile here
         path, query = path.split("?", 1)
-        query = "?" + query
     else:
-        query = ""
-    return QtCore.QUrl(os.path.abspath(expandPath(path, parentPath, sdf_format_args)) + query)
+        query = None
+    url = QtCore.QUrl.fromLocalFile(os.path.abspath(expandPath(path, parentPath, sdf_format_args)))
+    if query:
+        if Qt.IsPySide2 or Qt.IsPyQt5:
+            url.setQuery(query)
+        else:
+            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+    return url
+
+
+def strToUrl(path):
+    """ Properly set the query parameter of a URL, which doesn't seem to set QUrl.hasQuery properly unless using .setQuery (or .setQueryItems in Qt5).
+    
+    Use this when a path might have a query string after it. In all other cases. QUrl.fromLocalFile should work fine.
+    
+    :Parameters:
+        path : `str`
+            URL string
+    :Returns:
+        URL object
+    :Rtype:
+        `QtCore.QUrl`
+    """
+    if "?" in path:
+        path, query = path.split("?", 1)
+    else:
+        query = None
+    url = QtCore.QUrl.fromLocalFile(path)
+    if query:
+        if Qt.IsPySide2 or Qt.IsPyQt5:
+            url.setQuery(query)
+        else:
+            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+    return url
 
 
 def findModules(subdir):
@@ -151,7 +182,7 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
     """
     fd, tmpFileName = tempfile.mkstemp(suffix=".usd", dir=tmpDir)
     os.close(fd)
-    usdcat(usdFileName, tmpFileName, format="usda")
+    usdcat(QtCore.QDir.toNativeSeparators(usdFileName), tmpFileName, format="usda")
     return tmpFileName
 
 
@@ -239,7 +270,7 @@ def unzip(path, tmpDir=None):
     
     destDir = tempfile.mkdtemp(prefix="usdmanager_usdz_", dir=tmpDir)
     logger.debug("Extracting {} to {}".format(path, destDir))
-    with ZipFile(path, 'r') as zipRef:
+    with ZipFile(QtCore.QDir.toNativeSeparators(path), 'r') as zipRef:
         zipRef.extractall(destDir)
     return destDir
 
