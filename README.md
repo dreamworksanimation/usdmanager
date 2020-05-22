@@ -11,6 +11,8 @@ for use with USD and other hierarchical, text-based workflows, primarily geared 
 primarily designed around PyQt4, USD Manager uses the Qt.py compatibility library to allow working with PyQt4, PyQt5,
 PySide, or PySide2 for Qt bindings.
 
+![USD Manager screenshot](docs/_static/screenshot_island.png?raw=true "USD Manager")
+
 ### Development Repository
 
 This GitHub repository hosts the trunk of the USD Manager development. This implies that it is the newest public
