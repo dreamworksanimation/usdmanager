@@ -129,6 +129,16 @@
         </layout>
        </item>
        <item>
+        <widget class="QCheckBox" name="checkBox_autoIndent">
+         <property name="toolTip">
+          <string>Automatically indent new lines the same as the line above</string>
+         </property>
+         <property name="text">
+          <string>Use auto indentation</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QCheckBox" name="themeWidget">
          <property name="toolTip">
           <string>Use the dark UI theme. You must restart the application to see any changes for this setting.</string>

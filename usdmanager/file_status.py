@@ -45,7 +45,7 @@ class FileStatus(object):
                 If the file was truncated on read, and therefore should never be edited.
         """
         self.url = url if url else QUrl()
-        self.path = "" if self.url.isEmpty() else self.url.path()
+        self.path = "" if self.url.isEmpty() else self.url.toLocalFile()
         self.status = self.FILE_NEW
         self.fileInfo = None
         if update:
@@ -102,7 +102,7 @@ class FileStatus(object):
         elif self.status == self.FILE_TRUNCATED:
             return "File too large to fully display"
         else:
-            logger.error("Unexpected file status code: {}".format(self.status))
+            logger.error("Unexpected file status code: %s", self.status)
             return ""
     
     @property

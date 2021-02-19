@@ -46,7 +46,7 @@ class FindDialog(UI_TYPE):
         Creates and lays out the widgets defined in the ui file.
         
         :Parameters:
-            widget : `QtGui.QWidget`
+            widget : `QtWidgets.QWidget`
                 Base widget
         """
         super(FindDialog, self).setupUi(widget)
