@@ -37,12 +37,10 @@ Class hierarchy:
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import cgi
 import inspect
 import json
 import logging
 import os
-import re
 import shlex
 import signal
 import shutil
@@ -51,8 +49,8 @@ import subprocess
 import sys
 import tempfile
 import traceback
-from collections import defaultdict
 from contextlib import contextmanager
+from functools import partial
 from glob import glob
 from pkg_resources import resource_filename
 
@@ -73,13 +71,14 @@ except ImportError:
 
 from . import highlighter, images_rc, utils
 from .constants import (
-    LINE_CHAR_LIMIT, LINE_LIMIT, CHAR_LIMIT, FILE_FILTER, FILE_FORMAT_NONE, FILE_FORMAT_USD, FILE_FORMAT_USDA,
-    FILE_FORMAT_USDC, FILE_FORMAT_USDZ, HTML_BODY, RECENT_FILES, RECENT_TABS, TTY2HTML, USD_EXTS)
+    LINE_LIMIT, FILE_FILTER, FILE_FORMAT_NONE, FILE_FORMAT_USD, FILE_FORMAT_USDA,
+    FILE_FORMAT_USDC, FILE_FORMAT_USDZ, HTML_BODY, RECENT_FILES, RECENT_TABS, USD_EXTS)
 from .file_dialog import FileDialog
 from .file_status import FileStatus
 from .find_dialog import FindDialog
 from .linenumbers import LineNumbers
 from .include_panel import IncludePanel
+from .parser import FileParser, AbstractExtParser
 from .plugins import images_rc as plugins_rc
 from .plugins import Plugin
 from .preferences_dialog import PreferencesDialog
@@ -88,7 +87,6 @@ from .preferences_dialog import PreferencesDialog
 # Set up logging.
 logger = logging.getLogger(__name__)
 logging.basicConfig()
-logger.setLevel(logging.WARNING)
 
 
 # Qt.py compatibility: HACK for missing QUrl.path in PySide2 build.
@@ -97,14 +95,6 @@ if Qt.IsPySide2 and not hasattr(QtCore.QUrl, "path"):
         return self.toString(QtCore.QUrl.PrettyDecoded | QtCore.QUrl.RemoveQuery)
     
     QtCore.QUrl.path = qUrlPath
-
-
-class PathCacheDict(defaultdict):
-    """ Cache if file paths referenced more than once in a file exist, so we don't check on disk over and over.
-    """
-    def __missing__(self, key):
-        self[key] = os.path.exists(key)
-        return self[key]
 
 
 class UsdMngrWindow(QtWidgets.QMainWindow):
@@ -120,18 +110,11 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
 
       - Ability to write and repackage as usdz
 
-    - Add a preference for which files to enable teletype for (currently hard-coded to .log and .txt files).
     - Plug-ins based on active file type (ABC-specific commands, USD commands, etc.)
-    - Link matching RegEx based on active file type instead of all using the same rules.
-      Different extensions to search for based on file type, too.
+    - Different extensions to search for based on file type.
     - Add customized print options like name of file and date headers, similar to printing a web page.
     - Move setSource link parsing to a thread?
     - Move file status to a thread?
-    - From Pixar: There's one feature in a tool our sim dept wrote that might be useful to incorporate into your
-      browser, which can help immensely for big files, and it's to basically allow filtering of what gets displayed
-      for the usd file's contents. Not just like pattern matching so only certain prims/properties get shown (though
-      that is also useful), but things like "don't show timeSamples" or "only show first and last values for each array
-      with an ellipsis in the middle".
     - Dark theme syntax highlighting could use work. The bare minimum to get this working was done.
     - Going from Edit mode back to Browse mode shouldn't reload the document if the file on disk hasn't changed.
       Not sure why this is slower than just loading the browse tab in the first place...
@@ -166,6 +149,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
 
     """
     
+    compileLinkRegEx = Signal()
     editModeChanged = Signal(bool)
     updatingButtons = Signal()
     
@@ -181,11 +165,9 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         # This window class has access to these member variables:
         # self.app, self.config.
         
-        # Set default programs to a dictionary of extension: program pairs,
-        # where the extension is launched with the given program. This is
-        # useful for adding custom programs to view things like .exr images or
-        # .abc models. A blank string is opened by this app, not launched
-        # externally. The user's preferred programs are stored in
+        # Set default programs to a dictionary of extension: program pairs, where the extension is launched with the
+        # given program. This is useful for adding custom programs to view things like .exr images or .abc models. A
+        # blank string is opened by this app, not launched externally. The user's preferred programs are stored in
         # self.programs.
         self.defaultPrograms = {x: "" for x in USD_EXTS}
         self.defaultPrograms.update(self.app.DEFAULTS['defaultPrograms'])
@@ -198,16 +180,25 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         self.lastOpenFileDir = ""
         self.linkHighlighted = QtCore.QUrl("")
         self.quitting = False
-        self.stopLoadingTab = False
-        # TODO: Will we ever need to support transform timeSamples that use parentheses instead of square brackets?
-        self.usdArrayRegEx = re.compile(
-            "((?:\s*(?:\w+\s+)?\w+\[\]\s+[\w:]+\s*=|\s*\d+:)\s*\[)"  # Array attribute definition and equal sign, or a frame number and colon, plus the opening bracket.
-            "\s*(.*)\s*"  # Everything inside the square brackets.
-            "(\].*)$"  # Closing bracket to the end of the line.
-        )
+        
+        # Track changes to files on disk.
+        self.fileSystemWatcher = QtCore.QFileSystemWatcher(self)
+        self.fileSystemModified = set()
         
         self.setupUi()
         self.connectSignals()
+        
+        # Find and initialize file parsers.
+        self.fileParsers = []
+        self._initFileParser(FileParser, FileParser.__name__)
+        # Don't include the default parser in the list we iterate through to find compatible custom parsers,
+        # since we only use it as a fallback.
+        self.fileParserDefault = self.fileParsers.pop()
+        for module in utils.findModules("parsers"):
+            for name, cls in inspect.getmembers(module, lambda x: inspect.isclass(x) and
+                                                issubclass(x, FileParser) and
+                                                x not in (FileParser, AbstractExtParser)):
+                self._initFileParser(cls, name)
         
         # Find and initialize plugins.
         self.plugins = []
@@ -215,10 +206,29 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
             for name, cls in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, Plugin)):
                 try:
                     plugin = cls(self)
-                except Exception as e:
-                    logger.error("Failed to initialize {}: {}".format(name, e))
+                except Exception:
+                    logger.exception("Failed to initialize plugin %s", name)
                 else:
+                    logger.debug("Initialized plugin %s", name)
                     self.plugins.append(plugin)
+    
+    def _initFileParser(self, cls, name):
+        """ Initialize a file parser.
+        
+        :Parameters:
+            cls : `FileParser`
+                Parser class to instantiate
+            name : `str`
+                Class name
+        """
+        try:
+            parser = cls(self)
+            parser.compile()
+        except Exception:
+            logger.exception("Failed to initialize parser %s", name)
+        else:
+            logger.debug("Initialized parser %s", name)
+            self.fileParsers.append(parser)
     
     def setupUi(self):
         """ Create and lay out the widgets defined in the ui file, then add additional modifications to the UI.
@@ -236,7 +246,6 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         self.app.DEFAULTS['font'] = defaultDocFont
         
         self.readSettings()
-        self.compileLinkRegEx()
         
         # Changing the theme while the app is already running doesn't work well.
         # Currently, we set this once, and the user must restart the application to see changes.
@@ -442,6 +451,17 @@ a.binary {{color:#69F}}
         for highlighterCls in highlighterClasses:
             self.createHighlighter(highlighterCls)
         
+        self.loadingProgressBar = QtWidgets.QProgressBar(self.statusbar)
+        self.loadingProgressBar.setMaximumHeight(16)
+        self.loadingProgressBar.setMaximumWidth(200)
+        self.loadingProgressBar.setMaximum(100)
+        self.loadingProgressBar.setTextVisible(False)
+        self.loadingProgressBar.setVisible(False)
+        self.loadingProgressLabel = QtWidgets.QLabel(self.statusbar)
+        self.loadingProgressLabel.setVisible(False)
+        self.statusbar.addWidget(self.loadingProgressBar)
+        self.statusbar.addWidget(self.loadingProgressLabel)
+        
         # Add one of our special tabs.
         self.newTab()
         self.currTab = self.tabWidget.currentWidget()
@@ -496,20 +516,9 @@ a.binary {{color:#69F}}
             ext = None
         master = self.masterHighlighters[ext]
         if type(self.currTab.highlighter.master) is not master:
-            logger.debug("Setting highlighter to {}".format(ext))
+            logger.debug("Setting highlighter to %s", ext)
             self.currTab.highlighter.deleteLater()
             self.currTab.highlighter = highlighter.Highlighter(self.currTab.getCurrentTextWidget().document(), master)
-    
-    def compileLinkRegEx(self):
-        """ Compile regular expression to find links based on the acceptable extensions stored in self.programs.
-        
-        NOTE: If this RegEx is changed, the syntax highlighting rule needs to be as well.
-        
-        TODO: Support different search rules for different file extensions. Since we use the RegEx match groups in
-              setSource, each file type might be responsible for building its own HTML representation at that point.
-        """
-        exts = self.programs.keys()
-        self.re_usd = utils.usdRegEx(exts)
     
     @Slot(QtCore.QPoint)
     def customTextBrowserContextMenu(self, pos):
@@ -622,7 +631,7 @@ a.binary {{color:#69F}}
     def readSettings(self):
         """ Read in user config settings.
         """
-        logger.debug("Reading user settings from {}".format(self.config.fileName()))
+        logger.debug("Reading user settings from %s", self.config.fileName())
         default = self.app.DEFAULTS
         self.preferences = {
             'parseLinks': self.config.boolValue("parseLinks", default['parseLinks']),
@@ -644,6 +653,7 @@ a.binary {{color:#69F}}
             'tabSpaces': int(self.config.value("tabSpaces", default['tabSpaces'])),
             'theme': self.config.value("theme", default['theme']),
             'lineLimit': int(self.config.value("lineLimit", default['lineLimit'])),
+            'autoIndent': self.config.boolValue("autoIndent", default['autoIndent']),
         }
         
         # Read 'programs' settings object into self.programs.
@@ -667,7 +677,7 @@ a.binary {{color:#69F}}
             # are not in the user's settings.
             for key in self.defaultPrograms:
                 if key not in self.programs:
-                    logger.debug("Restoring program for file type {}".format(key))
+                    logger.debug("Restoring program for file type %s", key)
                     self.programs[key] = self.defaultPrograms[key]
         
         # Set toolbar visibility and positioning.
@@ -681,7 +691,7 @@ a.binary {{color:#69F}}
         
         # Get recent files list.
         for path in self.getRecentFilesFromSettings():
-            action = RecentFile(path, self.menuOpenRecent, self.openRecent)
+            action = RecentFile(utils.strToUrl(path), self.menuOpenRecent, self.openRecent)
             self.menuOpenRecent.addAction(action)
         if self.menuOpenRecent.actions():
             self.menuOpenRecent.setEnabled(True)
@@ -704,7 +714,7 @@ a.binary {{color:#69F}}
         This should only write settings modified via the Preferences dialog, as other preferences like "recentFiles"
         will be written immediately as they're modified. Some settings like window state are only saved on exit.
         """
-        logger.debug("Writing user settings to {}".format(self.config.fileName()))
+        logger.debug("Writing user settings to %s", self.config.fileName())
         self.config.setValue("parseLinks", self.preferences['parseLinks'])
         self.config.setValue("newTab", self.preferences['newTab'])
         self.config.setValue("syntaxHighlighting", self.preferences['syntaxHighlighting'])
@@ -720,6 +730,7 @@ a.binary {{color:#69F}}
         self.config.setValue("tabSpaces", self.preferences['tabSpaces'])
         self.config.setValue("theme", self.preferences['theme'])
         self.config.setValue("lineLimit", self.preferences['lineLimit'])
+        self.config.setValue("autoIndent", self.preferences['autoIndent'])
         
         # Write self.programs to settings object
         exts = self.programs.keys()
@@ -774,6 +785,8 @@ a.binary {{color:#69F}}
             path : `str`
                 File path
         """
+        # Strip the URL file scheme from the head of the path for consistency with legacy settings.
+        path = utils.stripFileScheme(path)
         paths = [x for x in self.getRecentFilesFromSettings() if x != path]
         paths.insert(0, path)
         self.writeRecentFilesToSettings(paths)
@@ -817,7 +830,6 @@ a.binary {{color:#69F}}
         # View Menu
         self.actionIncludePanel.toggled.connect(self.toggleInclude)
         self.actionRefresh.triggered.connect(self.refreshTab)
-        self.actionStop.triggered.connect(self.stopTab)
         self.actionZoomIn.triggered.connect(self.increaseFontSize)
         self.actionZoomOut.triggered.connect(self.decreaseFontSize)
         self.actionNormalSize.triggered.connect(self.defaultFontSize)
@@ -839,7 +851,7 @@ a.binary {{color:#69F}}
         # Help Menu
         self.aboutAction.triggered.connect(self.showAboutDialog)
         self.aboutQtAction.triggered.connect(self.showAboutQtDialog)
-        self.documentationAction.triggered.connect(self.openUrl)
+        self.documentationAction.triggered.connect(self.desktopOpenUrl)
         # Miscellaneous buttons, checkboxes, etc.
         self.addressBar.textEdited.connect(self.validateAddressBar)
         self.addressBar.openFile.connect(self.onOpen)
@@ -855,6 +867,7 @@ a.binary {{color:#69F}}
         self.actionDuplicateTab.triggered.connect(self.duplicateTab)
         self.actionRefreshTab.triggered.connect(self.refreshSelectedTab)
         self.actionViewSource.triggered.connect(self.viewSource)
+        self.fileSystemWatcher.fileChanged.connect(self.onFileChange)
         # Find
         self.buttonCloseFind.clicked.connect(self.toggleFindClose)
         self.findBar.textEdited.connect(self.validateFindBar)
@@ -989,15 +1002,15 @@ a.binary {{color:#69F}}
         """
         self.openFileDialog(self.currTab.getCurrentPath())
     
-    @Slot(str)
-    def openRecent(self, path):
+    @Slot(QtCore.QUrl)
+    def openRecent(self, url):
         """ Open an item from the Open Recent menu in a new tab.
         
         :Parameters:
-            path : `str`
-                File path
+            url : `QtCore.QUrl`
+                File URL
         """
-        self.setSource(QtCore.QUrl(path), newTab=True)
+        self.setSource(url, newTab=True)
     
     def saveFile(self, filePath, fileFormat=FILE_FORMAT_NONE, _checkUsd=True):
         """ Save the current file as the given filePath.
@@ -1038,7 +1051,7 @@ a.binary {{color:#69F}}
             if self.saveFile(tmpPath, fileFormat, False):
                 try:
                     logger.debug("Converting back to USD crate file")
-                    utils.usdcat(tmpPath, filePath, format="usdc")
+                    utils.usdcat(tmpPath, QtCore.QDir.toNativeSeparators(filePath), format="usdc")
                 except Exception:
                     logger.debug("Save failed on USD crate conversion")
                     self.restoreOverrideCursor()
@@ -1047,6 +1060,7 @@ a.binary {{color:#69F}}
                     status = True
                     self.currTab.fileFormat = FILE_FORMAT_USDC
                     self.restoreOverrideCursor()
+                    QtCore.QTimer.singleShot(10, partial(self.fileSystemWatcher.addPath, filePath))
             else:
                 self.restoreOverrideCursor()
             os.remove(tmpPath)
@@ -1057,11 +1071,11 @@ a.binary {{color:#69F}}
             self.showCriticalMessage("Writing usdz files is not yet supported!", title="Save File")
             return False
         elif path.open(QtCore.QIODevice.WriteOnly | QtCore.QIODevice.Text):
+            # Don't monitor changes to this file while we save it.
+            self.fileSystemWatcher.removePath(filePath)
             try:
-                # Which method is better?
-                path.write(str(self.currTab.textEditor.toPlainText()))
-                #out = QtCore.QTextStream(path)
-                #out << self.currTab.textEditor.toPlainText()
+                out = QtCore.QTextStream(path)
+                out << self.currTab.textEditor.toPlainText()
             except Exception:
                 self.restoreOverrideCursor()
                 self.showCriticalMessage("The file could not be saved!", traceback.format_exc(), "Save File")
@@ -1074,6 +1088,13 @@ a.binary {{color:#69F}}
                 self.restoreOverrideCursor()
             finally:
                 path.close()
+            
+            # This sometimes triggers too early if we're saving the file, prompting you to reload your own changes.
+            # Delay re-watching the file by a millisecond.
+            # Don't watch the file if this is a temp .usd file for crate conversion.
+            if _checkUsd:
+                QtCore.QTimer.singleShot(10, partial(self.fileSystemWatcher.addPath, filePath))
+            
             self.setDirtyTab(False)
             return True
         else:
@@ -1194,7 +1215,7 @@ a.binary {{color:#69F}}
                 else:
                     self.tabWidget.setTabIcon(idx, QtGui.QIcon())
                     self.tabWidget.setTabToolTip(idx, "{} - {}".format(fileName, filePath))
-                self.currTab.updateHistory(QtCore.QUrl(filePath))
+                self.currTab.updateHistory(QtCore.QUrl.fromLocalFile(filePath))
                 self.currTab.updateFileStatus()
                 self.setHighlighter(ext)
                 self.updateButtons()
@@ -1207,7 +1228,7 @@ a.binary {{color:#69F}}
         Get a new file path with the Save As dialog and copy the original file to the new file,
         opening the new file in a new tab.
         """
-        path = self.linkHighlighted.toString(QtCore.QUrl.RemoveQuery)
+        path = self.linkHighlighted.toLocalFile()
         if "*" in path or "<UDIM>" in path:
             self.showWarningMessage("Link could not be resolved as it may point to multiple files.")
             return
@@ -1217,15 +1238,16 @@ a.binary {{color:#69F}}
             saveAsPath, fileFormat = self.getSaveAsPath(path)
             if saveAsPath is not None:
                 try:
+                    url = QtCore.QUrl.fromLocalFile(saveAsPath)
                     if fileFormat == self.currTab.fileFormat:
                         qFile.copy(saveAsPath)
-                        self.setSource(QtCore.QUrl(saveAsPath), newTab=True)
+                        self.setSource(url, newTab=True)
                     else:
                         # Open the link first, so it's easier to use the saveFile functionality to handle format
                         # conversion.
                         self.setSource(self.linkHighlighted, newTab=True)
                         self.saveFile(saveAsPath, fileFormat)
-                        self.setSource(QtCore.QUrl(saveAsPath))
+                        self.setSource(url)
                 except Exception:
                     self.showCriticalMessage("Unable to save {} as {}.".format(path, saveAsPath),
                                              traceback.format_exc(), "Save Link As")
@@ -1422,7 +1444,7 @@ a.binary {{color:#69F}}
             toIndex : `int`
                 New tab position
         """
-        logger.debug("moveTabAcrossWindows {} {} {} {}".format(fromIndex, toIndex, fromWindow, toWindow))
+        logger.debug("moveTabAcrossWindows %d %d %d %d", fromIndex, toIndex, fromWindow, toWindow)
         
         srcWindow = self.app._windows[fromWindow]
         dstWindow = self.app._windows[toWindow]
@@ -1981,6 +2003,7 @@ a.binary {{color:#69F}}
             self.preferences['useSpaces'] = dlg.getPrefUseSpaces()
             self.preferences['tabSpaces'] = dlg.getPrefTabSpaces()
             self.preferences['lineLimit'] = dlg.getPrefLineLimit()
+            self.preferences['autoIndent'] = dlg.getPrefAutoIndent()
             
             # Update font and line number visibility in all tabs.
             self.tabWidget.setFont(self.preferences['font'])
@@ -1992,13 +2015,13 @@ a.binary {{color:#69F}}
                 w.textEditor.setFont(self.preferences['font'])
                 w.textEditor.zoomIn(self.preferences['fontSizeAdjust'])
                 w.lineNumbers.setVisible(self.preferences['lineNumbers'])
-                w.setTabSpaces(self.preferences['useSpaces'], self.preferences['tabSpaces'])
+                w.setIndentSettings(self.preferences['useSpaces'], self.preferences['tabSpaces'], self.preferences['autoIndent'])
             
             programs = dlg.getPrefPrograms()
             if programs != self.programs:
                 self.programs = programs
                 # Update regex used for searching links.
-                self.compileLinkRegEx()
+                self.compileLinkRegEx.emit()
                 # Update highlighter.
                 for lang, h in self.masterHighlighters.iteritems():
                     h.setLinkPattern(self.programs)
@@ -2104,7 +2127,7 @@ a.binary {{color:#69F}}
         This doesn't duplicate edit state or any history at the moment.
         """
         origIndex = self.tabWidget.tabBar.tabAt(self.contextMenuPos)
-        origPath = self.tabWidget.widget(origIndex).getCurrentUrl()
+        url = self.tabWidget.widget(origIndex).getCurrentUrl()
         
         # Create a new tab and select it, positioning it immediately after the original tab.
         self.newTab()
@@ -2114,8 +2137,8 @@ a.binary {{color:#69F}}
             self.tabWidget.moveTab(fromIndex, toIndex)
         
         # Open the same document as the original tab.
-        if not origPath.isEmpty():
-            self.setSource(origPath)
+        if not url.isEmpty():
+            self.setSource(url)
     
     @Slot()
     def refreshSelectedTab(self):
@@ -2147,12 +2170,6 @@ a.binary {{color:#69F}}
                 hScrollPos=self.currTab.getCurrentTextWidget().horizontalScrollBar().value(),
                 vScrollPos=self.currTab.getCurrentTextWidget().verticalScrollBar().value())
         return False
-    
-    @Slot()
-    def stopTab(self):
-        """ Stop loading the current tab.
-        """
-        self.stopLoadingTab = True
     
     @Slot()
     def increaseFontSize(self):
@@ -2223,7 +2240,7 @@ a.binary {{color:#69F}}
             index = self.tabWidget.currentIndex()
         
         if index != -1:
-            logger.debug("Restoring tab at index {}".format(index))
+            logger.debug("Restoring tab at index %d", index)
             # If we had a blank tab to start with, swap it with the new tab.
             # Be sure to add the new tab before removing the old tab so we always have at least one tab.
             self.tabWidget.setCurrentIndex(self.tabWidget.insertTab(index, tab, tab.action.icon(),
@@ -2267,10 +2284,13 @@ a.binary {{color:#69F}}
         Allows you to make comparisons using a temporary file, without saving your changes.
         """
         path = self.currTab.getCurrentPath()
+        if self.currTab.fileFormat == FILE_FORMAT_USDC:
+            path = self.getUsdCrateCachePath(path)
+        
         fd, tmpPath = tempfile.mkstemp(suffix=QtCore.QFileInfo(path).fileName(), dir=self.app.tmpDir)
         with os.fdopen(fd, 'w') as f:
             f.write(self.currTab.textEditor.toPlainText())
-        args = shlex.split(self.preferences['diffTool']) + [path, tmpPath]
+        args = shlex.split(self.preferences['diffTool']) + [QtCore.QDir.toNativeSeparators(path), tmpPath]
         self.launchProcess(args)
     
     @staticmethod
@@ -2333,7 +2353,7 @@ a.binary {{color:#69F}}
         labelName.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(labelName, 0, 0, 1, 0)
         labelPath1        = QtWidgets.QLabel("Full path:")
-        labelPath2        = QtWidgets.QLabel(path)
+        labelPath2        = QtWidgets.QLabel(QtCore.QDir.toNativeSeparators(path))
         labelSize1        = QtWidgets.QLabel("Size:")
         labelSize2        = QtWidgets.QLabel(utils.humanReadableSize(size))
         labelPermissions1 = QtWidgets.QLabel("Permissions:")
@@ -2411,7 +2431,7 @@ a.binary {{color:#69F}}
     def launchTextEditor(self):
         """ Launch the current file in a separate text editing application.
         """
-        path = self.currTab.getCurrentPath()
+        path = QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath())
         args = shlex.split(self.preferences['textEditor']) + [path]
         self.launchProcess(args)
     
@@ -2420,7 +2440,7 @@ a.binary {{color:#69F}}
         """ Launch the current file in usdview.
         """
         app = self.app.DEFAULTS['usdview']
-        path = self.currTab.getCurrentPath()
+        path = QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath())
         # Files with spaces have to be double-quoted on Windows for usdview.
         if os.name == "nt":
             cmd = '{} "{}"'.format(app, path)
@@ -2438,7 +2458,7 @@ a.binary {{color:#69F}}
                 File to open. If None, use currently open file.
         """
         if path is None:
-            path = self.currTab.getCurrentPath()
+            path = QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath())
         
         # Get program of choice from user.
         prog, ok = QtWidgets.QInputDialog.getText(
@@ -2480,7 +2500,7 @@ a.binary {{color:#69F}}
         QtWidgets.QMessageBox.aboutQt(self, self.app.appDisplayName)
     
     @Slot(bool)
-    def openUrl(self, checked=False, url=None):
+    def desktopOpenUrl(self, checked=False, url=None):
         """ Open a URL in a web browser.
         This method doesn't do anything if the URL evaluates to False.
         
@@ -2510,33 +2530,96 @@ a.binary {{color:#69F}}
     """
     Miscellaneous Methods
     """
-    @staticmethod
-    def convertTeletype(t):
-        """ Convert teletype codes to HTML styles.
-        This method assumes you have already escaped any necessary HTML characters.
+    
+    def currentlyOpenFiles(self):
+        """ Get the currently open files from all tabs.
         
-        :Parameters:
-            t : `str`
-                Original text
         :Returns:
-            String with teletype codes converted to HTML styles.
+            `str` file paths for each open tab
         :Rtype:
-            `str`
+            `list`
         """
-        for (code, style) in TTY2HTML:
-            t = t.replace(code, style)
-        return "<span>{}</span>".format(t)
+        return [self.tabWidget.widget(i).getCurrentPath() for i in range(self.tabWidget.count())]
     
     @Slot(QtCore.QUrl)
     def hoverUrl(self, link):
         """ Slot called when the mouse hovers over a URL.
         """
-        pathNoQuery = link.toString(QtCore.QUrl.RemoveQuery)
+        path = link.toLocalFile()
         if utils.queryItemBoolValue(link, "binary"):
-            self.statusbar.showMessage("{} (binary)".format(pathNoQuery))
+            self.statusbar.showMessage("{} (binary)".format(path))
         else:
-            self.statusbar.showMessage(pathNoQuery)
+            self.statusbar.showMessage(path)
         self.linkHighlighted = link
+    
+    @Slot(str)
+    def onFileChange(self, path):
+        """ Track files that have been modified on disk.
+        
+        :Parameters:
+            path : `str`
+                Modified file path
+        """
+        logger.debug("onFileChange: %s", path)
+        
+        # Check if the file has ACTUALLY changed.
+        # We're getting a LOT of false positives with QFileSystemWatcher.
+        # Allow changes within the last minute (60,000 milliseconds) (threshold chosen arbitrarily).
+        if (QtCore.QFile.exists(path) and
+            QtCore.QFileInfo(path).lastModified() < QtCore.QDateTime.currentDateTime().addMSecs(-60000)):
+            logger.debug("Ignoring file change since modified time is more than 1 minute ago.")
+            
+            # Remove and re-add it so we get notifications again.
+            self.fileSystemWatcher.removePath(path)
+            self.fileSystemWatcher.addPath(path)
+            return
+        
+        if path == self.currTab.getCurrentPath():
+            # If this is the current tab, pop up a dialog prompting the user if they want to reload.
+            self.promptOnFileChange(path)
+        else:
+            # Otherwise, store this in a list of modified paths. When we switch tabs,
+            # if it's a tab whose file has changed, prompt the user to reload the file.
+            self.fileSystemModified.add(path)
+    
+    def promptOnFileChange(self, path):
+        """ Prompt if the file should be reloaded when it has changed on the file system.
+        
+        :Parameters:
+            path : `str`
+                Modified file path
+        :Returns:
+            True if the user reloaded the file; otherwise, False
+        :Rtype:
+            `bool`
+        """
+        # Stop watching this file.
+        # If the user reloads, we will start watching the file again.
+        if path in self.fileSystemModified:
+            self.fileSystemModified.remove(path)
+        self.fileSystemWatcher.removePath(path)
+        
+        if QtCore.QFile.exists(path):
+            result = QtWidgets.QMessageBox.question(self, "File Modified Externally",
+                "{} has been modified on disk. Would you like to reload it?".format(path),
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+            if result == QtWidgets.QMessageBox.Yes:
+                return self.refreshTab()
+            # TODO: If choosing not to reload, should we warn the user again if saving this file later?
+            return False
+        else:
+            result = QtWidgets.QMessageBox.question(self, "File Not Found",
+                "{} no longer exists. Another process may have moved or deleted it.".format(path),
+                QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Cancel, QtWidgets.QMessageBox.Save)
+            if result == QtWidgets.QMessageBox.Save:
+                return self.saveTab()
+            # If not saving, switch to Edit mode so you can save.
+            # Make sure the tab appears as dirty so the user is prompted on exit to do so if they still haven't up to
+            # that point.
+            if not self.currTab.inEditMode:
+                self.toggleEdit()
+            self.setDirtyTab()
+            return False
     
     def setOverrideCursor(self, cursor=QtCore.Qt.WaitCursor):
         """ Set the override cursor if it is not already set.
@@ -2569,6 +2652,27 @@ a.binary {{color:#69F}}
         finally:
             self.restoreOverrideCursor()
     
+    def getUsdCrateCachePath(self, fileStr):
+        """ Cache a converted Crate file so we can use it again later without reconversion if it's still newer.
+        
+        :Parameters:
+            fileStr : `str`
+                USD file path
+        :Returns:
+            Cache file path
+        :Rtype:
+            `str`
+        """
+        if (fileStr in self.app.usdCache and
+            QtCore.QFileInfo(self.app.usdCache[fileStr]).lastModified() > QtCore.QFileInfo(fileStr).lastModified()):
+            usdPath = self.app.usdCache[fileStr]
+            logger.debug("Reusing cached file %s for binary file %s", usdPath, fileStr)
+        else:
+            logger.debug("Converting binary USD file to ASCII representation...")
+            usdPath = utils.generateTemporaryUsdFile(fileStr, self.app.tmpDir)
+            self.app.usdCache[fileStr] = usdPath
+        return usdPath
+    
     def readUsdCrateFile(self, fileStr):
         """ Read in a USD crate file via usdcat converting a temp file to ASCII.
         
@@ -2583,15 +2687,7 @@ a.binary {{color:#69F}}
         self.currTab.fileFormat = FILE_FORMAT_USDC
         self.tabWidget.setTabIcon(self.tabWidget.currentIndex(), self.binaryIcon)
         
-        # Cache the converted Crate file so we can use it again later without reconversion if it's still newer.
-        if fileStr in self.app.usdCache and os.path.getmtime(self.app.usdCache[fileStr]) > os.path.getmtime(fileStr):
-            usdPath = self.app.usdCache[fileStr]
-            logger.debug("Reusing cached file {} for binary file {}".format(usdPath, fileStr))
-        else:
-            logger.debug("Converting binary USD file to ASCII representation...")
-            usdPath = utils.generateTemporaryUsdFile(fileStr, self.app.tmpDir)
-            self.app.usdCache[fileStr] = usdPath
-        
+        usdPath = self.getUsdCrateCachePath(fileStr)
         with open(usdPath) as f:
             fileText = f.readlines()
         
@@ -2621,9 +2717,10 @@ a.binary {{color:#69F}}
             If default layer not found
         """
         # Cache the unzipped directory so we can use it again later without reconversion if it's still newer.
-        if fileStr in self.app.usdCache and os.path.getmtime(self.app.usdCache[fileStr]) > os.path.getmtime(fileStr):
+        if (fileStr in self.app.usdCache and
+            QtCore.QFileInfo(self.app.usdCache[fileStr]).lastModified() > QtCore.QFileInfo(fileStr).lastModified()):
             usdPath = self.app.usdCache[fileStr]
-            logger.debug("Reusing cached directory {} for zip file {}".format(usdPath, fileStr))
+            logger.debug("Reusing cached directory %s for zip file %s", usdPath, fileStr)
         else:
             logger.debug("Uncompressing usdz file...")
             usdPath = utils.unzip(fileStr, self.app.tmpDir)
@@ -2636,7 +2733,8 @@ a.binary {{color:#69F}}
             dest = utils.getUsdzLayer(usdPath, layer1)
             return self.readUsdzFile(dest, layer2)
         
-        return utils.getUsdzLayer(usdPath, layer)
+        args = "?extractedDir={}".format(usdPath)
+        return utils.getUsdzLayer(usdPath, layer) + args
     
     @Slot(QtCore.QUrl)
     def setSource(self, link, isNewFile=True, newTab=False, hScrollPos=0, vScrollPos=0):
@@ -2665,34 +2763,30 @@ a.binary {{color:#69F}}
         if not newTab and not self.dirtySave():
             return True
         
-        # Re-cast the QUrl so any query strings are evaluated properly.
-        link = QtCore.QUrl(link.toString())
-        
         # TODO: When given a relative path here, this expands based on the directory the tool was launched from.
         # Should this instead be relative based on the currently active tab's directory?
-        fileInfo = QtCore.QFileInfo(link.path())
-        fileStr = fileInfo.absoluteFilePath()
-        if not fileStr:
+        fileInfo = QtCore.QFileInfo(link.toLocalFile())
+        absFilePath = fileInfo.absoluteFilePath()
+        if not absFilePath:
             self.closeTab()
             return self.setSourceFinish()
         
-        # Set path to the fully expanded path.
-        link.setPath(fileStr)
+        nativeAbsPath = QtCore.QDir.toNativeSeparators(absFilePath)
         fullUrlStr = link.toString()
         fileExists = True  # Assume the file exists for now.
-        logger.debug("Setting source to {}".format(fullUrlStr))
+        logger.debug("Setting source to %s (local file path: %s) %s %s", fullUrlStr, link.toLocalFile(), nativeAbsPath, link)
         
         self.setOverrideCursor()
         try:
             # If the filename contains an asterisk, make sure there is at least one valid file.
             multFiles = None
-            if '*' in fileStr or "<UDIM>" in fileStr:
-                multFiles = glob(fileStr.replace("<UDIM>", "[1-9][0-9][0-9][0-9]"))
+            if '*' in nativeAbsPath or "<UDIM>" in nativeAbsPath:
+                multFiles = glob(nativeAbsPath.replace("<UDIM>", "[1-9][0-9][0-9][0-9]"))
                 if not multFiles:
-                    return self.setSourceFinish(False, "The file(s) could not be found:\n{}".format(fileStr))
+                    return self.setSourceFinish(False, "The file(s) could not be found:\n{}".format(nativeAbsPath))
                 
                 # If we're opening any files, avoid also opening directories that a glob might have picked up.
-                isFile = {x: os.path.isfile(x) for x in multFiles}
+                isFile = {x: QtCore.QFileInfo(x).isFile() for x in multFiles}
                 if any(isFile.values()):
                     multFiles = [x for x in multFiles if isFile[x]]
                 else:
@@ -2703,18 +2797,18 @@ a.binary {{color:#69F}}
             # These next tests would normally fail out if the path had a wildcard.
             else:
                 if fileInfo.isDir():
-                    logger.debug("Set source to directory. Opening file dialog to {}".format(fileStr))
+                    logger.debug("Set source to directory. Opening file dialog to %s", nativeAbsPath)
                     status = self.setSourceFinish()
                     # Instead of failing with a message that you can't open a directory, open the "Open File" dialog to
                     # this directory instead.
-                    self.lastOpenFileDir = fileStr
+                    self.lastOpenFileDir = absFilePath
                     self.openFileDialog()
                     return status
                 if not fileInfo.exists():
-                    logger.debug("The file could not be found: {}".format(fileStr))
+                    logger.debug("The file could not be found: %s", nativeAbsPath)
                     fileExists = False
                 elif not fileInfo.isReadable():
-                    return self.setSourceFinish(False, "The file could not be read:\n{}".format(fileStr))
+                    return self.setSourceFinish(False, "The file could not be read:\n{}".format(nativeAbsPath))
             
             # Get extension (minus beginning .) to determine which program to
             # launch, or if the textBrowser should try to display the file.
@@ -2725,7 +2819,7 @@ a.binary {{color:#69F}}
                     args = shlex.split(self.programs[ext]) + multFiles
                     self.launchProcess(args)
                 else:
-                    args = shlex.split(self.programs[ext]) + [fileStr]
+                    args = shlex.split(self.programs[ext]) + [nativeAbsPath]
                     self.launchProcess(args)
                 return self.setSourceFinish()
             
@@ -2737,6 +2831,12 @@ a.binary {{color:#69F}}
             if (newTab or (isNewFile and self.preferences['newTab'])) and not self.currTab.isNewTab:
                 self.newTab()
             else:
+                # Remove the tab's previous path from the file system watcher.
+                # Be careful not to remove the path if any other tabs have the same file open.
+                path = self.currTab.getCurrentPath()
+                if path and self.currentlyOpenFiles().count(path) <= 1:
+                    self.fileSystemWatcher.removePath(path)
+                
                 # Set to none until we know what we're reading in.
                 self.currTab.fileFormat = FILE_FORMAT_NONE
             
@@ -2745,240 +2845,79 @@ a.binary {{color:#69F}}
             idx = self.tabWidget.currentIndex()
             self.tabWidget.setTabText(idx, fileName)
             self.tabWidget.setTabIcon(idx, QtGui.QIcon())
-            self.tabWidget.setTabToolTip(idx, "{} - {}".format(fileName, fileStr))
-            self.addressBar.setText(fullUrlStr)
+            self.tabWidget.setTabToolTip(idx, "{} - {}".format(fileName, nativeAbsPath))
             
             # Take care of various history menus.
-            self.addItemToMenu(fullUrlStr, self.menuHistory, slot=self.setSource, maxLen=25, start=3, end=2)
-            self.addItemToMenu(fullUrlStr, self.menuOpenRecent, slot=self.openRecent, maxLen=RECENT_FILES)
+            self.addItemToMenu(link, self.menuHistory, slot=self.setSource, maxLen=25, start=3, end=2)
+            self.addItemToMenu(link, self.menuOpenRecent, slot=self.openRecent, maxLen=RECENT_FILES)
             self.menuOpenRecent.setEnabled(True)
             self.addRecentFileToSettings(fullUrlStr)
             
-            # Optionally show a warning after the file is loaded.
-            warning = None
-            truncated = False
-            
             if fileExists:
-                # Stop Loading Tab stops the expensive parsing of the file
-                # for links, checking if the links actually exist, etc.
-                # Setting it to this bypasses link parsing if the tab is in edit mode.
-                self.stopLoadingTab = self.currTab.inEditMode or not self.preferences['parseLinks']
-                self.actionStop.setEnabled(True)
+                # TODO: If files can load in parallel, this single progress bar would need to change.
+                self.loadingProgressBar.setValue(0)
+                self.loadingProgressBar.setVisible(True)
+                self.loadingProgressLabel.setVisible(True)
                 
-                # Progress bar.
-                loadingProgressBar = QtWidgets.QProgressBar(self.statusbar)
-                loadingProgressBar.setMaximumHeight(16)
-                loadingProgressBar.setMaximumWidth(200)
-                loadingProgressBar.setTextVisible(False)
-                loadingProgressLabel = QtWidgets.QLabel("Reading file", self.statusbar)
-                self.statusbar.addWidget(loadingProgressBar)
-                self.statusbar.addWidget(loadingProgressLabel)
-                
-                # Read in the file.
-                usd = False
                 try:
                     if self.validateFileSize(fileInfo):
-                        if utils.queryItemBoolValue(link, "binary") or ext == "usdc":
-                            # Treat this file as a binary USD crate file. Don't bother
-                            # checking the first line. If this is a valid ASCII USD
-                            # file, not binary, and we hit this section accidentally,
-                            # it will load slower but won't break anything.
-                            usd = True
-                            fileText = self.readUsdCrateFile(fileStr)
-                        elif ext == "usd":
-                            usd = True
-                            with open(fileStr) as f:
-                                # Read in the first line. If it's a binary USD file,
-                                # convert it to a temp ASCII file for viewing/editing.
-                                if f.readline().startswith("PXR-USDC"):
-                                    fileText = self.readUsdCrateFile(fileStr)
-                                else:
-                                    self.currTab.fileFormat = FILE_FORMAT_USDA
-                                    # Read in the full file.
-                                    f.seek(0)
-                                    fileText = f.readlines()
-                        elif ext == "usdz":
-                            usd = True
-                            layer = utils.queryItemValue(link, "layer")
-                            dest = self.readUsdzFile(fileStr, layer)
-                            self.restoreOverrideCursor()
-                            self.statusbar.removeWidget(loadingProgressBar)
-                            self.statusbar.removeWidget(loadingProgressLabel)
-                            return self.setSource(QtCore.QUrl(dest))
+                        for parser in self.fileParsers:
+                            if parser.acceptsFile(fileInfo, link):
+                                logger.debug("Using parser %s", parser.__class__.__name__)
+                                break
                         else:
-                            if ext == "usda":
-                                usd = True
-                                self.currTab.fileFormat = FILE_FORMAT_USDA
-                            with open(fileStr) as f:
-                                fileText = f.readlines()
+                            # No matching file parser found.
+                            if ext == "usdz":
+                                layer = utils.queryItemValue(link, "layer")
+                                dest = self.readUsdzFile(absFilePath, layer)
+                                self.restoreOverrideCursor()
+                                self.loadingProgressBar.setVisible(False)
+                                self.loadingProgressLabel.setVisible(False)
+                                return self.setSource(utils.strToUrl(dest))
+                            else:
+                                logger.debug("Using default parser")
+                                parser = self.fileParserDefault
+                        
+                        # Stop Loading Tab stops the expensive parsing of the file
+                        # for links, checking if the links actually exist, etc.
+                        # Setting it to this bypasses link parsing if the tab is in edit mode.
+                        parser.stop(self.currTab.inEditMode or not self.preferences['parseLinks'])
+                        self.actionStop.setEnabled(True)
+                        
+                        parser.parse(nativeAbsPath, fileInfo, link)
+                        self.currTab.fileFormat = parser.fileFormat
+                        self.setHighlighter(ext)
+                        logger.debug("Setting HTML")
+                        self.currTab.textBrowser.setHtml(parser.html)
+                        logger.debug("Setting plain text")
+                        self.currTab.textEditor.setPlainText("".join(parser.text))
+                        truncated = parser.truncated
+                        warning = parser.warning
+                        parser._cleanup()
                     else:
-                        self.statusbar.removeWidget(loadingProgressBar)
-                        self.statusbar.removeWidget(loadingProgressLabel)
+                        self.loadingProgressBar.setVisible(False)
+                        self.loadingProgressLabel.setVisible(False)
                         return self.setSourceFinish(False)
                 except Exception:
-                    self.statusbar.removeWidget(loadingProgressBar)
-                    self.statusbar.removeWidget(loadingProgressLabel)
-                    return self.setSourceFinish(False, "The file could not be read: {}".format(fileStr),
+                    self.loadingProgressBar.setVisible(False)
+                    self.loadingProgressLabel.setVisible(False)
+                    return self.setSourceFinish(False, "The file could not be read: {}".format(nativeAbsPath),
                                                 traceback.format_exc())
-
-                # Compile text into a single string formatted nicely for HTML.
-                length = len(fileText)
-
-                # Preserve any :SDF_FORMAT_ARGS: parameters from the current link.
-                sdf_format_args = utils.sdfQuery(link)
-
-                # TODO: Figure out a better way to handle streaming text for large files like Crate geometry.
-                # Large chunks of text (e.g. 2.2 billion characters) will cause Qt to segfault when creating a QString.
-                lineLimit = self.preferences['lineLimit']
-                if length > lineLimit:
-                    length = lineLimit
-                    truncated = True
-                    fileText = fileText[:length]
-                    warning = "Extremely large file! Capping display at {:,d} lines. You can edit this cap in the "\
-                              "Advanced tab of Preferences.".format(lineLimit)
-
-                loadingProgressBar.setMaximum(length - 1)
-                if self.stopLoadingTab:
-                    loadingProgressLabel.setText("Parsing text")
-                    logger.debug("Parsing text.")
-                else:
-                    loadingProgressLabel.setText("Parsing text for links")
-                    logger.debug("Parsing text for links.")
-                finalText = ""
-                exists = PathCacheDict()
-
-                for i in range(length):
-                    # Processing events allows us to catch the stop signal.
-                    QtCore.QCoreApplication.instance().processEvents()
-                    loadingProgressBar.setValue(i)
-
-                    # Escape HTML characters for proper display.
-                    # Do this before we add any actual HTML characters.
-                    lineOfText = cgi.escape(fileText[i])
-                    if len(lineOfText) > LINE_CHAR_LIMIT:
-                        if usd:
-                            match = self.usdArrayRegEx.match(lineOfText)
-                            if match:
-                                # Try to display just the first and last items in the long array with an ellipsis in the middle.
-                                # This drastically improves text browser interactivity and syntax highlighting time.
-                                logger.debug("Hiding long array on line {}".format(i))
-
-                                # Try to split to the first true item based on open parentheses.
-                                # This is hacky and prone to error if users have hand-edited the files.
-                                innerData = match.group(2)
-                                if innerData.startswith("(("):
-                                    split = ")),"
-                                elif innerData.startswith("("):
-                                    split = "),"
-                                else:
-                                    split = ","
-                                innerData = innerData.split(split, 1)[0] + split + "<span title='Long array truncated for display performance'> &hellip; </span>" + innerData.rsplit(split, 1)[-1].lstrip()
-
-                                finalText += "{}{}{}\n".format(match.group(1), innerData, match.group(3))
-                                continue
-                        logger.debug("Skipping link parsing for long line")
-                        finalText += lineOfText
-                        continue
-
-                    if self.stopLoadingTab:
-                        # If the user has pressed stop, load the rest of the document
-                        # without doing the expensive parsing for links.
-                        finalText += lineOfText
-                        continue
-
-                    # Find links.
-                    # These will search for multiple, non-overlapping links on each line.
-                    offset = 0
-                    for m in self.re_usd.finditer(lineOfText):
-                        # linkPath = `str` displayed file path
-                        # fullPath = `str` absolute file path
-                        # Example: <a href="fullPath">linkPath</a>
-                        linkPath = m.group(1)
-                        start = m.start(1)
-                        end = m.end(1)
-
-                        try:
-                            if os.path.isabs(linkPath):
-                                fullPath = os.path.abspath(utils.expandPath(linkPath, fileStr, sdf_format_args))
-                            else:
-                                # Relative path from the current file to the link.
-                                fullPath = os.path.abspath(os.path.join(os.path.dirname(fileStr), utils.expandPath(linkPath, fileStr, sdf_format_args)))
-
-                            # Override any previously set sdf format args.
-                            local_sdf_args = sdf_format_args.copy()
-                            if m.group(3):
-                                for kv in m.group(3).split("&amp;"):
-                                    k, v = kv.split("=", 1)
-                                    local_sdf_args[k] = v
-                            if local_sdf_args:
-                                queryParams = ["sdf=" + "+".join("{}:{}".format(k, v) for k, v in sorted(local_sdf_args.items(), key=lambda x: x[0]))]
-                            else:
-                                queryParams = []
-
-                            # .usdz file references (e.g. @set.usdz[foo/bar.usd]@)
-                            if m.group(2):
-                                queryParams.append("layer=" + m.group(2))
-
-                            # Make the HTML link.
-                            if exists[fullPath]:
-                                _, fullPathExt = os.path.splitext(fullPath)
-                                if fullPathExt == ".usdc" or (fullPathExt == ".usd" and utils.isUsdCrate(fullPath)):
-                                    queryParams.insert(0, "binary=1")
-                                    htmlLink = '<a class="binary" href="{}?{}">{}</a>'.format(fullPath, "&".join(queryParams), linkPath)
-                                else:
-                                    queryStr = "?" + "&".join(queryParams) if queryParams else ""
-                                    htmlLink = '<a href="{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
-                            elif '*' in linkPath or '&lt;UDIM&gt;' in linkPath or '.#.' in linkPath:
-                                # Create an orange link for files with wildcards in the path, designating zero or more files may exist.
-                                queryStr = "?" + "&".join(queryParams) if queryParams else ""
-                                htmlLink = '<a title="Multiple files may exist" class="mayNotExist" href="{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
-                            else:
-                                queryStr = "?" + "&".join(queryParams) if queryParams else ""
-                                htmlLink = '<a title="File not found" class="badLink" href="{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
-                        except ValueError:
-                            # File doesn't exist or path cannot be resolved.
-                            # Color it red.
-                            htmlLink = '<span title="File not found" class="badLink">{}</span>'.format(linkPath)
-                        # Calculate difference in length between new link and original text so that we know where
-                        # in the string to start the replacement when we have multiple matches in the same line.
-                        lineOfText = lineOfText[:start + offset] + htmlLink + lineOfText[end + offset:]
-                        offset += len(htmlLink) - end + start
-                    finalText += lineOfText
-                logger.debug("Done parsing text for links.")
-
-                if len(finalText) > CHAR_LIMIT:
-                    truncated = True
-                    finalText = finalText[:CHAR_LIMIT]
-                    warning = "Extremely large file! Capping display at {:,d} characters.".format(CHAR_LIMIT)
-
-                # Wrap the final text in a proper HTML document.
-                if self.preferences['teletype'] and ext in ["log", "txt"]:  # TODO: Add this to config and/or preferences.
-                    finalText = HTML_BODY.format(self.convertTeletype(finalText))
-                else:
-                    finalText = HTML_BODY.format(finalText)
                 
-                loadingProgressLabel.setText("Highlighting text")
+                self.loadingProgressLabel.setText("Highlighting text")
             else:
                 # Load an empty tab pointing to the nonexistent file.
-                fileText = []
-                finalText = ""
-            
-            # Change highlighter based on the file type.
-            self.setHighlighter(ext)
-            
-            # Set the text.
-            logger.debug("Setting HTML")
-            self.currTab.textBrowser.setHtml(finalText)
-            logger.debug("Setting plain text")
-            self.currTab.textEditor.setPlainText("".join(fileText))
-            del finalText, fileText
-            self.currTab.isNewTab = False
+                self.setHighlighter(ext)
+                self.currTab.textBrowser.setHtml("")
+                self.currTab.textEditor.setPlainText("")
+                truncated = False
+                warning = None
             
             logger.debug("Updating history")
+            self.currTab.isNewTab = False
             if isNewFile:
                 self.currTab.updateHistory(link, truncated=truncated)
             self.currTab.updateFileStatus(truncated=truncated)
-            
             if fileExists:
                 logger.debug("Setting scroll position")
                 # Set focus and scroll to given position.
@@ -2986,7 +2925,7 @@ a.binary {{color:#69F}}
                 self.currTab.getCurrentTextWidget().setFocus()
                 self.currTab.getCurrentTextWidget().horizontalScrollBar().setValue(hScrollPos)
                 self.currTab.getCurrentTextWidget().verticalScrollBar().setValue(vScrollPos)
-
+                
                 # Scroll to line number.
                 if link.hasQuery():
                     line = utils.queryItemValue(link, "line")
@@ -2994,15 +2933,18 @@ a.binary {{color:#69F}}
                         try:
                             line = int(line)
                         except ValueError:
-                            logger.warning("Invalid line number in query string: {}".format(line))
+                            logger.warning("Invalid line number in query string: %s", line)
                         else:
                             self.goToLineNumber(line)
+                
+                if absFilePath not in self.fileSystemWatcher.files():
+                    self.fileSystemWatcher.addPath(absFilePath)
                 
                 # Since we dirty the tab anytime the text is changed, undirty it, as we just loaded this file.
                 self.setDirtyTab(False)
                 
-                self.statusbar.removeWidget(loadingProgressBar)
-                self.statusbar.removeWidget(loadingProgressLabel)
+                self.loadingProgressBar.setVisible(False)
+                self.loadingProgressLabel.setVisible(False)
             else:
                 if not self.currTab.inEditMode:
                     self.toggleEdit()
@@ -3011,7 +2953,7 @@ a.binary {{color:#69F}}
             logger.debug("Cleanup")
             self.statusbar.showMessage("Done", 2000)
         except Exception:
-            return self.setSourceFinish(False, "An error occurred while reading the file: {}".format(fileStr),
+            return self.setSourceFinish(False, "An error occurred while reading the file: {}".format(nativeAbsPath),
                                         traceback.format_exc())
         else:
             return self.setSourceFinish(warning=warning)
@@ -3051,6 +2993,10 @@ a.binary {{color:#69F}}
         for path in files:
             self.setSource(utils.expandUrl(path, prevPath), newTab=True)
     
+    def setLoadingProgress(self, value):
+        self.loadingProgressBar.setValue(value)
+        QtWidgets.QApplication.processEvents()
+    
     def validateFileSize(self, info):
         """ If a file's size is above a certain threshold, confirm the user still wants to open the file.
         
@@ -3067,19 +3013,20 @@ a.binary {{color:#69F}}
             self.restoreOverrideCursor()
             try:
                 dlg = QtWidgets.QMessageBox.question(self, "Large File",
-                    "This file is {} and may be slow to load. Are you sure you want to continue?\n\n{}".format(utils.humanReadableSize(size), path),
+                    "This file is {} and may be slow to load. Are you sure you want to continue?\n\n{}".format(
+                        utils.humanReadableSize(size), info.absoluteFilePath()),
                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
                 return dlg == QtWidgets.QMessageBox.Yes
             finally:
                 self.setOverrideCursor()
         return True
     
-    def addItemToMenu(self, path, menu, slot, maxLen=None, start=0, end=None):
-        """ Add a path to a history menu.
+    def addItemToMenu(self, url, menu, slot, maxLen=None, start=0, end=None):
+        """ Add a URL to a history menu.
         
         :Parameters:
-            path : `str`
-                The full path to add to the history menu.
+            url : `QtCore.QUrl`
+                The full URL to add to a history menu.
             menu : `QtGui.QMenu`
                 Menu to add history item to.
             slot
@@ -3104,10 +3051,10 @@ a.binary {{color:#69F}}
         # Validate the start, end, and maxLen numbers.
         if start < 0 or maxLen <= 0 or numActions < 0:
             logger.error("Invalid start/end values provided for inserting action in menu.\n"
-                         "start: {}, end: {}, menu length: {}".format(start, end, numAllActions))
+                         "start: %d, end: %d, menu length: %d", start, end, numAllActions)
         elif numActions == 0:
             # There are not any actions yet, so just add or insert it.
-            action = RecentFile(path, menu, slot)
+            action = RecentFile(url, menu, slot)
             if start != 0 and numAllActions > start:
                 menu.insertAction(actions[start], action)
             else:
@@ -3115,7 +3062,7 @@ a.binary {{color:#69F}}
         else:
             alreadyInMenu = False
             for action in actions[start:end]:
-                if path == action.path:
+                if url == action.url:
                     alreadyInMenu = True
                     # Move to the top if there is more than one action and it isn't already at the top.
                     if numActions > 1 and action != actions[start]:
@@ -3123,7 +3070,7 @@ a.binary {{color:#69F}}
                         menu.insertAction(actions[start], action)
                     break
             if not alreadyInMenu:
-                action = RecentFile(path, menu, slot)
+                action = RecentFile(url, menu, slot)
                 menu.insertAction(actions[start], action)
                 if maxLen is not None and numActions == maxLen:
                     menu.removeAction(actions[start + maxLen - 1])
@@ -3167,6 +3114,12 @@ a.binary {{color:#69F}}
         self.updateButtons()
         
         if not self.quitting:
+            # Prompt if this file was modified on disk since the last time we viewed it.
+            path = self.currTab.getCurrentPath()
+            if path in self.fileSystemModified:
+                if self.promptOnFileChange(path):
+                    return
+            
             # Highlighting can be very slow on bigger files. Don't worry about
             # updating it if we're closing tabs while quitting the app.
             self.findHighlightAll()
@@ -3191,7 +3144,19 @@ a.binary {{color:#69F}}
     def updateButtons(self):
         """ Update button states, text fields, and other GUI elements.
         """
-        self.addressBar.setText(self.currTab.getCurrentUrl().toString())
+        # Hide the file:// from the URL in the address bar.
+        url = self.currTab.getCurrentUrl()
+        path = url.toLocalFile()
+        urlStr = url.toString()
+        if "?" in urlStr:
+            urlStr, query = urlStr.split("?", 1)
+        else:
+            query = None
+        path = QtCore.QDir.toNativeSeparators(path)
+        if query:
+            path += "?" + query
+        self.addressBar.setText(path)
+        
         self.breadcrumb.setText(self.currTab.breadcrumb)
         self.updateEditButtons()
         
@@ -3421,6 +3386,13 @@ a.binary {{color:#69F}}
             `bool`
         """
         if self.currTab.isDirty():
+            doc = self.currTab.textEditor.document()
+            if (not doc.isUndoAvailable() and not doc.isRedoAvailable()
+                and not QtCore.QFile.exists(self.currTab.getCurrentPath())):
+                # We navigated to a non-existent file and haven't actually edited it yet, but other code set it to
+                # dirty so it's easier to save as the new file. Don't prompt to close in this case.
+                # TODO: Is there a better way to track this?
+                return True
             dlg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Warning, "Save File",
                 "The document has been modified.", QtWidgets.QMessageBox.Save |
                 QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel, self)
@@ -3453,7 +3425,7 @@ a.binary {{color:#69F}}
             path : `str`
                 File to open
         """
-        self.setSource(QtCore.QUrl(path), newTab=True)
+        self.setSource(utils.strToUrl(path), newTab=True)
     
     @Slot()
     def onOpenLinkNewWindow(self):
@@ -3472,7 +3444,7 @@ a.binary {{color:#69F}}
     def onOpenLinkWith(self):
         """ Show the "Open With..." dialog for the currently highlighted link.
         """
-        self.launchProgramOfChoice(self.linkHighlighted.toString(QtCore.QUrl.RemoveQuery))
+        self.launchProgramOfChoice(QtCore.QDir.toNativeSeparators(self.linkHighlighted.toLocalFile()))
     
     @Slot(str)
     def onBreadcrumbActivated(self, path):
@@ -3485,7 +3457,7 @@ a.binary {{color:#69F}}
         # Check if there are any changes to be saved before we modify the history.
         if not self.dirtySave():
             return
-        self.currTab.gotoBreadcrumb(path)
+        self.currTab.gotoBreadcrumb(utils.strToUrl(path))
     
     @Slot(str)
     def onBreadcrumbHovered(self, path):
@@ -3644,37 +3616,37 @@ class AddressBarCompleter(QtWidgets.QCompleter):
 class RecentFile(QtWidgets.QAction):
     """ Action representing an individual file in the Recent Files or history menus.
     """
-    openFile = Signal(QtCore.QUrl)
+    openUrl = Signal(QtCore.QUrl)
     
-    def __init__(self, path, parent=None, slot=None):
+    def __init__(self, url, parent=None, slot=None):
         """ Create the action.
         
         :Parameters:
-            path : `str`
-                Absolute path to open.
+            url : `QtCore.QUrl`
+                URL to open.
             parent : `QtGui.QMenu`
                 Menu to add action to.
             slot
                 Method to connect openFile signal to
         """
         super(RecentFile, self).__init__(parent)
-        self.path = path
-        
+        self.url = url
+        localFile = url.toLocalFile()
         # Don't show any query strings or SDF_FORMAT_ARGS in the menu.
-        displayName = path.split("?", 1)[0].split(":SDF_FORMAT_ARGS:", 1)[0]
+        displayName = localFile.split(":SDF_FORMAT_ARGS:", 1)[0]
         # Escape any ampersands so that we don't get underlines for Alt+<key> shortcuts.
         displayName = QtCore.QFileInfo(displayName).fileName().replace("&", "&&")
         self.setText(displayName)
-        self.setStatusTip(self.path)
+        self.setStatusTip(localFile)
         self.triggered.connect(self.onClick)
         if slot is not None:
-            self.openFile.connect(slot)
+            self.openUrl.connect(slot)
     
     @Slot(bool)
     def onClick(self, *args):
         """ Signal to open the selected file in the current tab.
         """
-        self.openFile.emit(QtCore.QUrl(self.path))
+        self.openUrl.emit(self.url)
 
 
 class TabBar(QtWidgets.QTabBar):
@@ -3877,7 +3849,7 @@ class TextEdit(QtWidgets.QTextEdit):
     """
     Customized QTextEdit to allow entering spaces with the Tab key.
     """
-    def __init__(self, parent=None, tabSpaces=4, useSpaces=True):
+    def __init__(self, parent=None, tabSpaces=4, useSpaces=True, autoIndent=True):
         """ Create and initialize the tab.
         
         :Parameters:
@@ -3892,9 +3864,10 @@ class TextEdit(QtWidgets.QTextEdit):
         super(TextEdit, self).__init__(parent)
         self.tabSpaces = tabSpaces
         self.useSpaces = useSpaces
+        self.autoIndent = autoIndent
     
     def keyPressEvent(self, e):
-        """ Override the Tab key to insert spaces instead.
+        """ Override the Tab key to insert spaces instead and the Return key to match indentation
         
         :Parameters:
             e : `QtGui.QKeyEvent`
@@ -3913,6 +3886,21 @@ class TextEdit(QtWidgets.QTextEdit):
         elif e.key() == QtCore.Qt.Key_Backtab and e.modifiers() == QtCore.Qt.ShiftModifier:
             self.unindentText()
             return
+        elif e.key() == QtCore.Qt.Key_Return and self.autoIndent:
+            cursor = self.textCursor()
+            cursor.beginEditBlock()
+            cursor.insertText("\n")
+            # Copy indent by moving up a line and to the next word
+            cursor.movePosition(cursor.Up)
+            cursor.movePosition(cursor.NextWord, cursor.KeepAnchor)
+            indent = cursor.selectedText()
+            # Don't insert indents that aren't only tabs and/or spaces
+            if QtCore.QRegExp("[\t ]*").exactMatch(indent):
+                cursor.movePosition(cursor.Down)
+                cursor.insertText(indent)
+            cursor.endEditBlock()
+            return
+
         super(TextEdit, self).keyPressEvent(e)
     
     def commentOutText(self, commentStart="#", commentEnd=""):
@@ -4100,7 +4088,7 @@ class BrowserTab(QtWidgets.QWidget):
         self.setStyleSheet("QTextBrowser{{background-color:{}}}".format(color))
         self.inEditMode = False
         self.isActive = True  # Track if this tab is open or has been closed.
-        self.isNewTab = True
+        self.isNewTab = True  # Track if this tab has been used for any files yet.
         self.setAcceptDrops(True)
         self.breadcrumb = ""
         self.history = []  # List of FileStatus objects
@@ -4125,7 +4113,7 @@ class BrowserTab(QtWidgets.QWidget):
         self.textEditor.setFont(font)
         self.textEditor.setWordWrapMode(QtGui.QTextOption.NoWrap)
         self.textEditor.setVisible(self.inEditMode)
-        self.setTabSpaces(prefs['useSpaces'], prefs['tabSpaces'])
+        self.setIndentSettings(prefs['useSpaces'], prefs['tabSpaces'], prefs['autoIndent'])
         
         # Line numbers.
         self.lineNumbers = LineNumbers(self, widget=self.getCurrentTextWidget())
@@ -4159,7 +4147,7 @@ class BrowserTab(QtWidgets.QWidget):
                 Defaults to the start of the menu if the index isn't given or is invalid.
         """
         item = self.history[self.historyIndex]
-        action = RecentFile(item.url.toString(), menu, self.onHistoryActionTriggered)
+        action = RecentFile(item.url, menu, self.onHistoryActionTriggered)
         action.historyIndex = self.historyIndex
         
         try:
@@ -4188,21 +4176,21 @@ class BrowserTab(QtWidgets.QWidget):
             path = model.item(0, 2).text()
         self.openFile.emit(path)
     
-    def findPath(self, path):
+    def findUrl(self, url):
         """ Find the index of the given path in the tab's history.
         
         This returns the first occurrence if it is in the history more than once.
         
         :Parameters:
-            path : `str`
-                Path to search for in history.
+            url : `QtCore.QUrl`
+                URL to search for in history.
         :Returns:
             Index of the given path in the history, or 0 if not found.
         :Rtype:
             `int`
         """
         for i in range(self.historyIndex + 1):
-            if self.history[i].url.toString() == path:
+            if self.history[i].url == url:
                 return i
         return 0
     
@@ -4222,7 +4210,7 @@ class BrowserTab(QtWidgets.QWidget):
         
         :Returns:
             Absolute path to current file plus any query strings.
-            Ex: /studio/filename.usd?line=14
+            Ex: file:///studio/filename.usd?line=14
         :Rtype:
             `QtCore.QUrl`
         """
@@ -4282,22 +4270,22 @@ class BrowserTab(QtWidgets.QWidget):
         self.updateBreadcrumb()
         self.openOldUrl.emit(self.getCurrentUrl())
     
-    def gotoBreadcrumb(self, path, index=None):
-        """ Go to the historical index of the given path.
+    def gotoBreadcrumb(self, url, index=None):
+        """ Go to the historical index of the given URL.
         
         This does not handle updating the displayed document.
         
         :Parameters:
-            path : `str`
-                Breadcrumb path
+            url : `QtCore.QUrl`
+                Breadcrumb URL
             index : `int` | None
                 History index of the item to go to
         """
-        # Insert the current path as the first item on the Forward menu.
+        # Insert the current URL as the first item on the Forward menu.
         self.addHistoryAction(self.forwardMenu)
         
         # Rebuild the history navigation menus.
-        newIndex = index if index is not None else self.findPath(path)
+        newIndex = index if index is not None else self.findUrl(url)
         self.backMenu.clear()
         self.forwardMenu.clear()
         for i, historyItem in enumerate(self.history[:newIndex]):
@@ -4355,17 +4343,19 @@ class BrowserTab(QtWidgets.QWidget):
     
     @Slot(QtCore.QUrl)
     def onHistoryActionTriggered(self, url):
-        self.gotoBreadcrumb(url.toString(), self.sender().historyIndex)
+        self.gotoBreadcrumb(url, self.sender().historyIndex)
         self.openOldUrl.emit(url)
     
-    def setTabSpaces(self, useSpaces=True, tabSpaces=4):
-        """ Set the width of a tab character in spaces, both for display and editing.
+    def setIndentSettings(self, useSpaces=True, tabSpaces=4, autoIndent=True):
+        """ Set various indent settings, such as spaces for tabs and auto indentation
         
         :Parameters:
             useSpaces : `bool`
                 Use spaces instead of a tab character
             spaces : `int`
                 Tab size in spaces
+            autoIndent: `bool`
+                Automatically copy indentation from above line with return
         """
         font = self.parent().font()
         width = tabSpaces * QtGui.QFontMetricsF(font).averageCharWidth()
@@ -4373,6 +4363,7 @@ class BrowserTab(QtWidgets.QWidget):
         self.textEditor.setTabStopWidth(width)
         self.textEditor.tabSpaces = tabSpaces
         self.textEditor.useSpaces = useSpaces
+        self.textEditor.autoIndent = autoIndent
     
     def updateHistory(self, url, update=False, truncated=False):
         """ Add a newly created file to the tab's history, cutting off any forward history.
@@ -4519,7 +4510,7 @@ class App(QtCore.QObject):
         
         # Initialize the application and settings.
         self._set_log_level()
-        logger.debug("Qt version: {} {}".format(Qt.__binding__, Qt.__binding_version__))
+        logger.debug("Qt version: %s %s", Qt.__binding__, Qt.__binding_version__)
         self.app = QtWidgets.QApplication(sys.argv)
         self.app.setApplicationName(self.appName)
         self.app.setWindowIcon(QtGui.QIcon(":images/images/logo.png"))
@@ -4534,17 +4525,18 @@ class App(QtCore.QObject):
         # App settings.
         appConfigPath = resource_filename(__name__, "config.json")
         try:
-            logger.info("Loading app config from {}".format(appConfigPath))
+            logger.info("Loading app config from %s", appConfigPath)
             with open(appConfigPath) as f:
                 appConfig = json.load(f)
-        except Exception as e:
-            logger.error("Failed to load app config from {}: {}".format(appConfigPath, e))
+        except Exception:
+            logger.exception("Failed to load app config from %s", appConfigPath)
             appConfig = {}
         
         # Define app defaults that we use when the user preference doesn't exist and when resetting preferences in the
         # Preferences dialog.
         self.DEFAULTS = {
             'autoCompleteAddressBar': True,
+            'autoIndent': True,
             'defaultPrograms': appConfig.get("defaultPrograms", {}),
             'diffTool': appConfig.get("diffTool", "xdiff"),
             'findMatchCase': False,
@@ -4595,7 +4587,7 @@ class App(QtCore.QObject):
         """ Clean up the temp dir.
         """
         if self.tmpDir is not None:
-            logger.debug("Removing temp dir: {}".format(self.tmpDir))
+            logger.debug("Removing temp dir: %s", self.tmpDir)
             shutil.rmtree(self.tmpDir, ignore_errors=True)
             self.tmpDir = None
     
@@ -4633,7 +4625,7 @@ class App(QtCore.QObject):
             # Create a temp directory for cache-like files.
             if self.tmpDir is None:
                 self.tmpDir = tempfile.mkdtemp(prefix=self.appName)
-                logger.debug("Temp directory: {}".format(self.tmpDir))
+                logger.debug("Temp directory: %s", self.tmpDir)
             App._eventLoopStarted = True
             
             # Let the python interpreter continue running every 500 ms so we can cleanly kill the app on a
@@ -4663,6 +4655,8 @@ class Settings(QtCore.QSettings):
         :Parameters:
             key : `str`
                 Settings key
+            default : `bool`
+                Default value if key is undefined
         :Returns:
             True of the value is "true"; otherwise False.
             False if the value is undefined.
@@ -4670,6 +4664,8 @@ class Settings(QtCore.QSettings):
             `bool`
         """
         val = self.value(key)
+        if type(val) is bool:
+            return val
         return default if val is None else val == "true"
 
 
@@ -4688,7 +4684,7 @@ def run():
     try:
         signal.signal(signal.SIGINT, interrupt)
     except ValueError as e:
-        logger.warning("You may not be able to kill this app via Ctrl-C: {}".format(e))
+        logger.warning("You may not be able to kill this app via Ctrl-C: %s", e)
     
     app.run()
 

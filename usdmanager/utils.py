@@ -50,7 +50,7 @@ except ImportError:
     resolver = None
 
 
-def expandPath(path, parentPath=None, sdf_format_args=None):
+def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
     """ Expand and normalize a path that may have variables in it.
     Do not use this for URLs with query strings.
     
@@ -62,11 +62,15 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
             Helps with asset resolution.
         sdf_format_args : `dict` | None
             Dictionary of key/value `str` pairs from a path's :SDF_FORMAT_ARGS:
+        extractedDir: `str` | None
+                If the file is part of an extracted usdz archive, this is the path
+                to the extracted dir of the archive.
     :Returns:
         Normalized path with variables expanded.
     :Rtype:
         `str`
     """
+    # Expand the ~ part of any path first. The asset resolver doesn't understand it.
     path = os.path.expanduser(os.path.normpath(path))
     
     if resolver is not None:
@@ -76,14 +80,22 @@ def expandPath(path, parentPath=None, sdf_format_args=None):
             with Ar.ResolverContextBinder(context):
                 anchoredPath = path if parentPath is None else resolver.AnchorRelativePath(parentPath, path)
                 resolved = resolver.Resolve(anchoredPath)
+                
+                # https://graphics.pixar.com/usd/docs/Usdz-File-Format-Specification.html#UsdzFileFormatSpecification-USDConstraints-AssetResolution
+                # If resolving relative to the layer fails in a usdz archive,
+                # try to resolve based on the archive's default layer path.
+                if extractedDir and not os.path.exists(resolved):
+                    default_layer = os.path.join(extractedDir, 'defaultLayer.usd')
+                    anchoredPath = resolver.AnchorRelativePath(default_layer, path)
+                    resolved = resolver.Resolve(anchoredPath)
         except Exception:
-            logger.warn("Failed to resolve Asset path {} with parent {}".format(path, parentPath))
+            logger.warn("Failed to resolve Asset path %s with parent %s", path, parentPath)
         else:
             if resolved:
                 return resolved
     
     # Return this best-attempt if all else fails.
-    return os.path.expandvars(path)
+    return QtCore.QDir.cleanPath(os.path.expandvars(path))
 
 
 def expandUrl(path, parentPath=None):
@@ -96,18 +108,71 @@ def expandUrl(path, parentPath=None):
             Parent file path this file is defined in relation to.
             Helps with asset resolution.
     :Returns:
-        Normalized path with variables expanded.
+        URL with normalized path with variables expanded.
+    :Rtype:
+        `QtCore.QUrl`
+    """
+    sdf_format_args = {}
+    path = stripFileScheme(path)
+    if "?" in path:
+        sdf_format_args.update(sdfQuery(QtCore.QUrl.fromLocalFile(path)))
+        path, query = path.split("?", 1)
+    else:
+        query = None
+    url = QtCore.QUrl.fromLocalFile(os.path.abspath(expandPath(path, parentPath, sdf_format_args)))
+    if query:
+        if Qt.IsPySide2 or Qt.IsPyQt5:
+            url.setQuery(query)
+        else:
+            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+    return url
+
+
+def strToUrl(path):
+    """ Properly set the query parameter of a URL, which doesn't seem to set QUrl.hasQuery properly unless using
+    .setQuery (or .setQueryItems in Qt5).
+    
+    Use this when a path might have a query string after it or start with file://. In all other cases.
+    QUrl.fromLocalFile should work fine.
+    
+    :Parameters:
+        path : `str`
+            URL string
+    :Returns:
+        URL object
+    :Rtype:
+        `QtCore.QUrl`
+    """
+    if "?" in path:
+        path, query = path.split("?", 1)
+    else:
+        query = None
+    
+    if path.startswith("file://"):
+        url = QtCore.QUrl(path)
+    else:
+        url = QtCore.QUrl.fromLocalFile(path)
+    
+    if query:
+        if Qt.IsPySide2 or Qt.IsPyQt5:
+            url.setQuery(query)
+        else:
+            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+    return url
+
+
+def stripFileScheme(path):
+    """ Strip any file URI scheme from the beginning of a path.
+    
+    Parameters:
+        path : `str`
+            File path or file URL
+    :Returns:
+        File path
     :Rtype:
         `str`
     """
-    sdf_format_args = {}
-    if "?" in path:
-        sdf_format_args.update(sdfQuery(QtCore.QUrl(path)))
-        path, query = path.split("?", 1)
-        query = "?" + query
-    else:
-        query = ""
-    return QtCore.QUrl(os.path.abspath(expandPath(path, parentPath, sdf_format_args)) + query)
+    return path[7:] if path.startswith("file://") else path
 
 
 def findModules(subdir):
@@ -124,7 +189,7 @@ def findModules(subdir):
     """
     modules = []
     pluginPath = resource_filename(__name__, subdir)
-    logger.info("Searching for *.py plugins in {}".format(pluginPath))
+    logger.info("Searching for *.py plugins in %s", pluginPath)
     for f in glob(os.path.join(pluginPath, "*.py")):
         moduleName = os.path.splitext(os.path.basename(f))[0]
         if moduleName.startswith('_') or moduleName.startswith('~'):
@@ -151,7 +216,7 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
     """
     fd, tmpFileName = tempfile.mkstemp(suffix=".usd", dir=tmpDir)
     os.close(fd)
-    usdcat(usdFileName, tmpFileName, format="usda")
+    usdcat(QtCore.QDir.toNativeSeparators(usdFileName), tmpFileName, format="usda")
     return tmpFileName
 
 
@@ -238,8 +303,8 @@ def unzip(path, tmpDir=None):
     from zipfile import ZipFile
     
     destDir = tempfile.mkdtemp(prefix="usdmanager_usdz_", dir=tmpDir)
-    logger.debug("Extracting {} to {}".format(path, destDir))
-    with ZipFile(path, 'r') as zipRef:
+    logger.debug("Extracting %s to %s", path, destDir)
+    with ZipFile(QtCore.QDir.toNativeSeparators(path), 'r') as zipRef:
         zipRef.extractall(destDir)
     return destDir
 
@@ -469,7 +534,7 @@ def queryItemValue(url, key, default=None):
                 try:
                     k, v = item.split("=")
                 except ValueError:
-                    logger.error("Invalid query string: {}".format(query))
+                    logger.error("Invalid query string: %s", query)
                 else:
                     if k == key:
                         return v
@@ -515,8 +580,8 @@ def sdfQuery(link):
     except ValueError:
         # No sdf query parameter.
         pass
-    except Exception as e:
-        logger.error("Invalid sdf query parameter: {}".format(e))
+    except Exception:
+        logger.exception("Invalid sdf query parameter")
     return sdf_format_args
 
 

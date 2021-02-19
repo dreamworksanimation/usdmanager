@@ -79,6 +79,7 @@ class PreferencesDialog(QDialog):
         self.lineEditDiffTool.setText(parent.preferences['diffTool'])
         self.themeWidget.setChecked(parent.preferences['theme'] == "dark")
         self.lineLimitSpinBox.setValue(parent.preferences['lineLimit'])
+        self.checkBox_autoIndent.setChecked(parent.preferences['autoIndent'])
         self.updateFontLabel()
         
         # ----- Programs tab -----
@@ -259,6 +260,15 @@ class PreferencesDialog(QDialog):
         """
         return self.useSpacesSpinBox.value()
     
+    def getPrefAutoIndent(self):
+        """
+        :Returns:
+            State of "Use auto indentation" check box.
+        :Rtype:
+            `bool`
+        """
+        return self.checkBox_autoIndent.isChecked()
+
     def getPrefDiffTool(self):
         """
         :Returns:
@@ -347,6 +357,7 @@ class PreferencesDialog(QDialog):
             self.docFont = default['font']
             self.updateFontLabel()
             self.lineLimitSpinBox.setValue(default['lineLimit'])
+            self.checkBox_autoIndent.setChecked(default['autoIndent'])
             
             # Re-create file association fields with the default programs.
             self.populateProgsAndExts(self.parent().defaultPrograms)
