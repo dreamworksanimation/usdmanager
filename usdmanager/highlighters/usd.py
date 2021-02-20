@@ -30,7 +30,7 @@ class MasterUSDHighlighter(MasterHighlighter):
         return [
             [   # Symbols and booleans
                 # \u2026 is the horizontal ellipsis we insert in the middle of long arrays.
-                "(?:[>(){}[\]=@" + u"\u2026" + "]|</|true|false)",
+                "(?:[>(){}[\]=@" + "\u2026" + "]|</|true|false)",
                 QtCore.Qt.darkMagenta, # Light theme
                 QtGui.QColor("#CCC"), # Dark theme
                 QtGui.QFont.Bold

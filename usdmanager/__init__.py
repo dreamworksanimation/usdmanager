@@ -34,7 +34,6 @@ Class hierarchy:
         - TextEdit
 
 """
-from __future__ import absolute_import, division, print_function
 
 import argparse
 import inspect
@@ -733,8 +732,8 @@ a.binary {{color:#69F}}
         self.config.setValue("autoIndent", self.preferences['autoIndent'])
         
         # Write self.programs to settings object
-        exts = self.programs.keys()
-        progs = self.programs.values()
+        exts = list(self.programs.keys())
+        progs = list(self.programs.values())
         self.config.beginWriteArray("programs")
         for i in range(len(progs)):
             self.config.setArrayIndex(i)
@@ -1716,7 +1715,7 @@ a.binary {{color:#69F}}
         """
         phrase = self.findBar.text() if self.buttonHighlightAll.isChecked() else highlighter.DONT_MATCH_PHRASE
         if phrase != self.masterHighlighters[None].findPhrase:
-            for lang, h in self.masterHighlighters.iteritems():
+            for lang, h in self.masterHighlighters.items():
                 h.setFindPhrase(phrase)
         if self.currTab.highlighter.dirty:
             with self.overrideCursor():
@@ -2023,10 +2022,10 @@ a.binary {{color:#69F}}
                 # Update regex used for searching links.
                 self.compileLinkRegEx.emit()
                 # Update highlighter.
-                for lang, h in self.masterHighlighters.iteritems():
+                for lang, h in self.masterHighlighters.items():
                     h.setLinkPattern(self.programs)
             
-            for lang, h in self.masterHighlighters.iteritems():
+            for lang, h in self.masterHighlighters.items():
                 h.setSyntaxHighlighting(self.preferences['syntaxHighlighting'])
             
             # Enable/Disable completer on address bar.
@@ -2061,7 +2060,7 @@ a.binary {{color:#69F}}
         checked = checked == QtCore.Qt.Checked
         if checked != self.preferences['findMatchCase']:
             self.updatePreference('findMatchCase', checked)
-            for lang, h in self.masterHighlighters.iteritems():
+            for lang, h in self.masterHighlighters.items():
                 h.setFindCase(checked)
             with self.overrideCursor():
                 self.currTab.highlighter.rehighlight()
@@ -3821,7 +3820,7 @@ class TextBrowser(QtWidgets.QTextBrowser):
         """
         cursor = self.textCursor()
         if cursor.hasSelection():
-            selection = cursor.selectedText().replace(u'\u2029', '\n')
+            selection = cursor.selectedText().replace('\u2029', '\n')
             clipboard = QtWidgets.QApplication.clipboard()
             clipboard.setText(selection, clipboard.Selection)
     
