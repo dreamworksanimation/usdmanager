@@ -49,6 +49,7 @@ setup(
     package_data={
         "usdmanager": [
             "highlighters/*.py",
+            "parsers/*.py",
             "plugins/*.py",
             "*.json",
             "*.ui"
