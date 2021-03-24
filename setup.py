@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from __future__ import absolute_import, division, print_function
 
 from setuptools import setup, find_packages
 from glob import glob
 
 
 PACKAGE = "usdmanager"
-execfile("{}/version.py".format(PACKAGE))
+exec(compile(open("{}/version.py".format(PACKAGE)).read(), "{}/version.py".format(PACKAGE), 'exec'))
 VERSION = __version__
 
 
@@ -41,7 +40,7 @@ setup(
         "Natural Language :: English",
         "Operating System :: POSIX",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2",
+        "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
     ],
     packages=find_packages(),
