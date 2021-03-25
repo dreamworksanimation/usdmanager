@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>443</width>
-    <height>230</height>
+    <height>242</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,10 +53,18 @@
       </layout>
      </item>
      <item row="1" column="1">
-      <widget class="QLineEdit" name="replaceLineEdit"/>
+      <widget class="QLineEdit" name="replaceLineEdit">
+       <property name="placeholderText">
+        <string>Replace</string>
+       </property>
+      </widget>
      </item>
      <item row="0" column="1">
-      <widget class="QLineEdit" name="findLineEdit"/>
+      <widget class="QLineEdit" name="findLineEdit">
+       <property name="placeholderText">
+        <string>Find</string>
+       </property>
+      </widget>
      </item>
      <item row="1" column="0">
       <widget class="QLabel" name="replaceLabel">

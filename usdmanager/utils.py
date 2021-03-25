@@ -121,10 +121,7 @@ def expandUrl(path, parentPath=None):
         query = None
     url = QtCore.QUrl.fromLocalFile(os.path.abspath(expandPath(path, parentPath, sdf_format_args)))
     if query:
-        if Qt.IsPySide2 or Qt.IsPyQt5:
-            url.setQuery(query)
-        else:
-            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+        url.setQuery(query)
     return url
 
 
@@ -526,13 +523,12 @@ def queryItemValue(url, key, default=None):
     :Raises ValueError:
         If an invalid query string is given
     """
-    url = url.toString()
-    if "?" in url:
-        query = url.split("?", 1)[1]
-        for item in query.split("&"):
+    if url.hasQuery():
+        query = url.toString().split("?", 1)[1]
+        for item in query.split(url.queryPairDelimiter()):
             if item:
                 try:
-                    k, v = item.split("=")
+                    k, v = item.split(url.queryValueDelimiter())
                 except ValueError:
                     logger.error("Invalid query string: %s", query)
                 else:
@@ -583,6 +579,29 @@ def sdfQuery(link):
     except Exception:
         logger.exception("Invalid sdf query parameter")
     return sdf_format_args
+
+
+def urlFragmentToQuery(url):
+    """ Convert a URL with a fragment (e.g. url#?foo=bar) to a URL with a query string.
+
+    Normally, this app treats that as a file to NOT reload, using the query string as a mechanism to modify the
+    currently loaded file, such as jumping to a line number. We instead convert this to a "normal" URL with a query
+    string if the URL needs to load in a new tab or new window, for example.
+
+    :Parameters:
+        url : `QtCore.QUrl`
+            URL
+    :Returns:
+        Converted URL
+    :Rtype:
+        `QtCore.QUrl`
+    """
+    if url.hasFragment():
+        fragment = url.fragment()
+        url.setFragment(None)
+        if fragment.startswith("?"):
+            url.setQuery(fragment[1:])
+    return url
 
 
 def usdRegEx(exts):
