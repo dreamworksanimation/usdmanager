@@ -26,9 +26,6 @@ from .constants import LINE_CHAR_LIMIT
 from .utils import findModules
 
 
-# Used to clear out highlighting from the Find command.
-DONT_MATCH_PHRASE = "USDMNGRDONTMATCH"
-
 # Enabled when running in a theme with a dark background color.
 DARK_THEME = False
 
@@ -106,7 +103,7 @@ def findHighlighters():
     # Find all available "MasterHighlighter" subclasses within the highlighters module.
     classes = []
     for module in findModules("highlighters"):
-        for name, cls in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, MasterHighlighter)):
+        for _, cls in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, MasterHighlighter)):
             classes.append(cls)
     return classes
 
@@ -155,7 +152,7 @@ class MasterHighlighter(QtCore.QObject):
         # Undo syntax highlighting on at least some of our links so the assigned colors show.
         self.ruleLink = createRule("*")
         self.highlightingRules.append(self.ruleLink)
-        self.setLinkPattern(programs or {})
+        self.setLinkPattern(programs or {}, dirty=False)
         
         # Some general single-line rules that apply to many file formats.
         # Numeric literals
@@ -194,14 +191,6 @@ class MasterHighlighter(QtCore.QObject):
         if self.ruleLink not in self.highlightingRules:
             self.highlightingRules.append(self.ruleLink)
         
-        # Find phrase.
-        frmt = QtGui.QTextCharFormat()
-        frmt.setBackground(QtCore.Qt.yellow)
-        pattern = QtCore.QRegExp(DONT_MATCH_PHRASE, QtCore.Qt.CaseInsensitive, QtCore.QRegExp.FixedString)
-        self.findRule = (pattern, frmt)
-        self.blankRules.append(self.findRule)
-        self.highlightingRules.append(self.findRule)
-
         self.setSyntaxHighlighting(enableSyntaxHighlighting)
     
     def getRules(self):
@@ -240,48 +229,20 @@ class MasterHighlighter(QtCore.QObject):
         """
         self.dirtied.emit()
     
-    def setFindPhrase(self, phrase):
-        """ Set the "find" phrase when searching for text.
-        
-        :Parameters:
-            phrase : `str`
-                Text in find bar to search for.
-        """
-        if phrase == "":
-            phrase = DONT_MATCH_PHRASE
-        
-        if phrase != self.findPhrase:
-            if phrase == DONT_MATCH_PHRASE:
-                self.findRule = (self.findRule[0], QtGui.QTextCharFormat())
-            else:
-                self.findRule[1].setBackground(QtCore.Qt.yellow)
-            self.findRule[0].setPattern(phrase)
-            self.findPhrase = phrase
-            self.dirty()
-    
-    def setFindCase(self, case):
-        """ Set the case sensitivity when searching for text.
-        
-        :Parameters:
-            case : `bool`
-                Find is case-sensitive if True.
-        """
-        case = QtCore.Qt.CaseSensitive if case else QtCore.Qt.CaseInsensitive
-        if case != self.findRule[0].caseSensitivity():
-            self.findRule[0].setCaseSensitivity(case)
-            self.dirty()
-    
-    def setLinkPattern(self, programs):
+    def setLinkPattern(self, programs, dirty=True):
         """ Set the rules to search for files based on file extensions, quotes, etc.
         
         :Parameters:
             programs : `dict`
                 extension: program pairs of strings.
+            dirty : `bool`
+                If we should trigger a rehighlight or not.
         """
         # This is slightly different than the main program's RegEx because Qt doesn't support all the same things.
         # TODO: Not allowing a backslash here might break Windows file paths if/when we try to support that. 
         self.ruleLink[0].setPattern(r'(?:[^\'"@()\t\n\r\f\v\\]*\.)(?:' + '|'.join(programs.keys()) + r')(?=(?:[\'")@]|\\\"))')
-        self.dirty()
+        if dirty:
+            self.dirty()
     
     def setSyntaxHighlighting(self, enable, force=True):
         """ Enable/Disable syntax highlighting.
@@ -334,6 +295,12 @@ class Highlighter(QtGui.QSyntaxHighlighter):
             # TODO: Do we need to reset the block state or anything else here?
             return
         
+        # Reduce name lookups for speed, since this is one of the slowest parts of the app.
+        setFormat = self.setFormat
+        currentBlockState = self.currentBlockState
+        setCurrentBlockState = self.setCurrentBlockState
+        previousBlockState = self.previousBlockState
+
         for pattern, frmt in self.master.rules:
             i = pattern.indexIn(text)
             while i >= 0:
@@ -344,12 +311,12 @@ class Highlighter(QtGui.QSyntaxHighlighter):
                     i = pos1
                 else:
                     length = pattern.matchedLength()
-                self.setFormat(i, length, frmt)
+                setFormat(i, length, frmt)
                 i = pattern.indexIn(text, i + length)
         
-        self.setCurrentBlockState(0)
+        setCurrentBlockState(0)
         for state, (startExpr, endExpr, frmt) in enumerate(self.master.multilineRules, 1):
-            if self.previousBlockState() == state:
+            if previousBlockState() == state:
                 # We're already inside a match for this rule. See if there's an ending match.
                 startIndex = 0
                 add = 0
@@ -371,15 +338,15 @@ class Highlighter(QtGui.QSyntaxHighlighter):
                     # We found the end of the multiline rule.
                     length = endIndex - startIndex + add + endExpr.matchedLength()
                     # Since we're at the end of this rule, reset the state so other multiline rules can try to match.
-                    self.setCurrentBlockState(0)
+                    setCurrentBlockState(0)
                 else:
                     # Still inside the multiline rule.
                     length = len(text) - startIndex + add
-                    self.setCurrentBlockState(state)
+                    setCurrentBlockState(state)
                 
                 # Highlight the portion of this line that's inside the multiline rule.
                 # TODO: This doesn't actually ensure we hit the closing expression before highlighting.
-                self.setFormat(startIndex, length, frmt)
+                setFormat(startIndex, length, frmt)
                 
                 # Look for the next match.
                 startIndex = startExpr.indexIn(text, startIndex + length)
@@ -390,7 +357,7 @@ class Highlighter(QtGui.QSyntaxHighlighter):
                 else:
                     add = startExpr.matchedLength()
             
-            if self.currentBlockState() == state:
+            if currentBlockState() == state:
                 break
         
         self.dirty = False

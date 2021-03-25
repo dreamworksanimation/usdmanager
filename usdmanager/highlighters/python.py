@@ -36,7 +36,7 @@ class MasterPythonHighlighter(MasterHighlighter):
             [
                 # Keywords
                 r"\b(?:and|as|assert|break|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|"
-                r"import|in|is|lambda|not|or|pass|print|raise|return|try|while|with|yield)\b",
+                r"import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b",
                 QtGui.QColor("#4b7029"),
                 QtGui.QColor("#4b7029"),
                 QtGui.QFont.Bold

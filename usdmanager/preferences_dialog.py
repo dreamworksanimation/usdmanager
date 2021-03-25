@@ -53,7 +53,7 @@ class PreferencesDialog(QDialog):
         Creates and lays out the widgets defined in the ui file.
         
         :Parameters:
-            widget : `QtGui.QWidget`
+            widget : `QtWidgets.QWidget`
                 Base widget
         """
         #super(PreferencesDialog, self).setupUi(widget) # TODO: Switch back to this if we get loadUiType working.

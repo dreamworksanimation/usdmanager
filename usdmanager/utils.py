@@ -35,7 +35,7 @@ elif Qt.IsPySide2:
 else:
     uic = Qt._uic
 
-from .constants import USD_EXTS
+from .constants import USD_EXTS, USD_AMBIGUOUS_EXTS, USD_ASCII_EXTS, USD_CRATE_EXTS
 
 
 # Set up logging.
@@ -121,10 +121,7 @@ def expandUrl(path, parentPath=None):
         query = None
     url = QtCore.QUrl.fromLocalFile(os.path.abspath(expandPath(path, parentPath, sdf_format_args)))
     if query:
-        if Qt.IsPySide2 or Qt.IsPyQt5:
-            url.setQuery(query)
-        else:
-            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+        url.setQuery(query)
     return url
 
 
@@ -214,7 +211,7 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
     :Raises OSError:
         If usdcat fails
     """
-    fd, tmpFileName = tempfile.mkstemp(suffix=".usd", dir=tmpDir)
+    fd, tmpFileName = tempfile.mkstemp(suffix="." + USD_AMBIGUOUS_EXTS[0], dir=tmpDir)
     os.close(fd)
     usdcat(QtCore.QDir.toNativeSeparators(usdFileName), tmpFileName, format="usda")
     return tmpFileName
@@ -309,7 +306,7 @@ def unzip(path, tmpDir=None):
     return destDir
 
 
-def getUsdzLayer(usdzDir, layer=None):
+def getUsdzLayer(usdzDir, layer=None, usdz=None):
     """ Get a layer from an unzipped usdz archive.
     
     :Parameters:
@@ -318,6 +315,8 @@ def getUsdzLayer(usdzDir, layer=None):
         layer : `str`
             Default layer within file (e.g. the portion within the square brackets here:
             @foo.usdz[path/to/file/within/package.usd]@)
+        usdz : `str`
+            Original usdz file path
     :Returns:
         Layer file path
     :Rtype:
@@ -332,18 +331,30 @@ def getUsdzLayer(usdzDir, layer=None):
         else:
             raise ValueError("Layer {} not found in usdz archive {}".format(layer, usdzDir))
     
-    # TODO: Figure out if this is really the proper way to get the default layer.
+    if usdz is not None:
+        try:
+            from pxr import Usd
+        except ImportError:
+            logger.debug("Unable to import pxr.Usd to find usdz default layer.")
+        else:
+            zipFile = Usd.ZipFile.Open(usdz)
+            if zipFile:
+                for fileName in zipFile.GetFileNames():
+                    return os.path.join(usdzDir, fileName)
+            raise ValueError("Default layer not found in usdz archive!")
+    
+    # Fallback to checking the files on disk instead of using USD.
     destFile = os.path.join(usdzDir, "defaultLayer.usd")
     if os.path.exists(destFile):
         return destFile
-    files = glob(os.path.join(usdzDir, "*.usd")) + glob(os.path.join(usdzDir, "*.usd[ac]"))
+    files = []
+    for ext in USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS + USD_CRATE_EXTS:
+        files += glob(os.path.join(usdzDir, "*." + ext))
     if files:
         if len(files) == 1:
             return files[0]
-        else:
-            raise ValueError("Ambiguous default layer in usdz archive!")
-    else:
-        raise ValueError("No default layer found in usdz archive!")
+        raise ValueError("Ambiguous default layer in usdz archive!")
+    raise ValueError("No default layer found in usdz archive!")
 
 
 def humanReadableSize(size):
@@ -357,7 +368,7 @@ def humanReadableSize(size):
     :Rtype:
         `str`
     """
-    for unit in ["bytes", "kB", "MB", "GB"]:
+    for unit in ("bytes", "kB", "MB", "GB"):
         if abs(size) < 1024:
             return "{:.1f} {}".format(size, unit)
         size /= 1024.0
@@ -526,13 +537,12 @@ def queryItemValue(url, key, default=None):
     :Raises ValueError:
         If an invalid query string is given
     """
-    url = url.toString()
-    if "?" in url:
-        query = url.split("?", 1)[1]
-        for item in query.split("&"):
+    if url.hasQuery():
+        query = url.toString().split("?", 1)[1]
+        for item in query.split(url.queryPairDelimiter()):
             if item:
                 try:
-                    k, v = item.split("=")
+                    k, v = item.split(url.queryValueDelimiter())
                 except ValueError:
                     logger.error("Invalid query string: %s", query)
                 else:
@@ -583,6 +593,29 @@ def sdfQuery(link):
     except Exception:
         logger.exception("Invalid sdf query parameter")
     return sdf_format_args
+
+
+def urlFragmentToQuery(url):
+    """ Convert a URL with a fragment (e.g. url#?foo=bar) to a URL with a query string.
+
+    Normally, this app treats that as a file to NOT reload, using the query string as a mechanism to modify the
+    currently loaded file, such as jumping to a line number. We instead convert this to a "normal" URL with a query
+    string if the URL needs to load in a new tab or new window, for example.
+
+    :Parameters:
+        url : `QtCore.QUrl`
+            URL
+    :Returns:
+        Converted URL
+    :Rtype:
+        `QtCore.QUrl`
+    """
+    if url.hasFragment():
+        fragment = url.fragment()
+        url.setFragment(None)
+        if fragment.startswith("?"):
+            url.setQuery(fragment[1:])
+    return url
 
 
 def usdRegEx(exts):

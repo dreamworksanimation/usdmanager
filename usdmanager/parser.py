@@ -49,6 +49,7 @@ class FileParser(QObject):
     
     # Override as needed.
     fileFormat = FILE_FORMAT_NONE
+    lineCharLimit = LINE_CHAR_LIMIT
     # Group within the RegEx corresponding to the file path only.
     # Useful if you modify compile() but not linkParse().
     RE_FILE_GROUP = 1
@@ -86,7 +87,7 @@ class FileParser(QObject):
         :Rtype:
             `bool`
         """
-        raise NotImplemented
+        raise NotImplementedError
     
     def _cleanup(self):
         """ Reset variables for a new file.
@@ -155,6 +156,13 @@ class FileParser(QObject):
             self.status.emit("Parsing text for links")
             logger.debug("Parsing text for links.")
         
+        # Reduce name lookups for speed, since this is one of the slowest parts of the app.
+        emit = self.progress.emit
+        lineCharLimit = self.lineCharLimit
+        finditer = self.regex.finditer
+        re_file_group = self.RE_FILE_GROUP
+        parseMatch = self.parseMatch
+
         html = ""
         # Escape HTML characters for proper display.
         # Do this before we add any actual HTML characters.
@@ -166,19 +174,19 @@ class FileParser(QObject):
                 html += "".join(lines[i:])
                 break
             
-            self.progress.emit(i)
-            if len(line) > LINE_CHAR_LIMIT:
+            emit(i)
+            if len(line) > lineCharLimit:
                 html += self.parseLongLine(line)
                 continue
             
             # Search for multiple, non-overlapping links on each line.
             offset = 0
-            for m in self.regex.finditer(line):
-                linkPath = m.group(self.RE_FILE_GROUP)
-                start = m.start(self.RE_FILE_GROUP)
-                end = m.end(self.RE_FILE_GROUP)
+            for m in finditer(line):
+                linkPath = m.group(re_file_group)
+                start = m.start(re_file_group)
+                end = m.end(re_file_group)
                 try:
-                    href = self.parseMatch(m, linkPath, nativeAbsPath, fileInfo)
+                    href = parseMatch(m, linkPath, nativeAbsPath, fileInfo)
                 except ValueError:
                     # File doesn't exist or path cannot be resolved.
                     # Color it red.
