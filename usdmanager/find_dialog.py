@@ -15,7 +15,7 @@
 #
 from Qt.QtCore import Slot
 from Qt.QtWidgets import QStatusBar
-from Qt.QtGui import QIcon
+from Qt.QtGui import QIcon, QTextDocument
 
 from .utils import loadUiType
 
@@ -61,6 +61,23 @@ class FindDialog(UI_TYPE):
         """
         self.findLineEdit.textChanged.connect(self.updateButtons)
     
+    def searchFlags(self):
+        """ Get find flags based on checked options.
+
+        :Returns:
+            Find flags
+        :Rtype:
+            `QTextDocument.FindFlags`
+        """
+        flags = QTextDocument.FindFlags()
+        if self.caseSensitiveCheck.isChecked():
+            flags |= QTextDocument.FindCaseSensitively
+        if self.wholeWordsCheck.isChecked():
+            flags |= QTextDocument.FindWholeWords
+        if self.searchBackwardsCheck.isChecked():
+            flags |= QTextDocument.FindBackward
+        return flags
+
     @Slot(str)
     def updateButtons(self, text):
         """

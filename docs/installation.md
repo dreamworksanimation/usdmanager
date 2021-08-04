@@ -47,8 +47,14 @@ and this will depend on your setup.py install settings.
 
 ### Mac (OSX)
 
+#### Installation
+1. Launch Terminal
+2. ```cd``` to the downloaded usdmanager folder (you should see a setup.py file in here).
+3. Customize usdmanager/config.json if needed.
+4. Run ```python setup.py install``` (may need to prepend the command with ```sudo``` and/or add the ```--user``` flag)
+5. Depending on where you installed it (e.g. /Users/username/Library/Python/3.7/bin), update your $PATH to include the relevant bin directory by editing /etc/paths or ~/.zshrc.
+
 #### Known Issues
-- User preferences may not preserve between sessions.
 - Since this is not installed as an entirely self-contained package, the application name (and icon) will by Python, not USD Manager.
 
 ### Windows
@@ -56,7 +62,8 @@ and this will depend on your setup.py install settings.
 #### Installation
 1. Launch Command Prompt
 2. ```cd``` to the downloaded usdmanager folder (you should see a setup.py file in here).
-3. Run ```python setup.py install``` (may need the ```--user``` flag)
+3. Customize usdmanager/config.json if needed.
+4. Run ```python setup.py install``` (may need the ```--user``` flag)
 
 If setup.py complains about missing setuptools, you can install it via pip. If you installed a new enough python-2 version, pip should already be handled for you, but you may still need to add it to your PATH. pip should already live somewhere like this (C:\Python27\Scripts\pip.exe), and you can permanently add it to your environment with: ```setx PATH "%PATH%;C:\Python27\Scripts"```
 
