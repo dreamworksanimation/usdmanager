@@ -35,7 +35,7 @@ elif Qt.IsPySide2:
 else:
     uic = Qt._uic
 
-from .constants import USD_EXTS
+from .constants import USD_EXTS, USD_AMBIGUOUS_EXTS, USD_ASCII_EXTS, USD_CRATE_EXTS
 
 
 # Set up logging.
@@ -211,7 +211,7 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
     :Raises OSError:
         If usdcat fails
     """
-    fd, tmpFileName = tempfile.mkstemp(suffix=".usd", dir=tmpDir)
+    fd, tmpFileName = tempfile.mkstemp(suffix="." + USD_AMBIGUOUS_EXTS[0], dir=tmpDir)
     os.close(fd)
     usdcat(QtCore.QDir.toNativeSeparators(usdFileName), tmpFileName, format="usda")
     return tmpFileName
@@ -306,7 +306,7 @@ def unzip(path, tmpDir=None):
     return destDir
 
 
-def getUsdzLayer(usdzDir, layer=None):
+def getUsdzLayer(usdzDir, layer=None, usdz=None):
     """ Get a layer from an unzipped usdz archive.
     
     :Parameters:
@@ -315,6 +315,8 @@ def getUsdzLayer(usdzDir, layer=None):
         layer : `str`
             Default layer within file (e.g. the portion within the square brackets here:
             @foo.usdz[path/to/file/within/package.usd]@)
+        usdz : `str`
+            Original usdz file path
     :Returns:
         Layer file path
     :Rtype:
@@ -329,18 +331,30 @@ def getUsdzLayer(usdzDir, layer=None):
         else:
             raise ValueError("Layer {} not found in usdz archive {}".format(layer, usdzDir))
     
-    # TODO: Figure out if this is really the proper way to get the default layer.
+    if usdz is not None:
+        try:
+            from pxr import Usd
+        except ImportError:
+            logger.debug("Unable to import pxr.Usd to find usdz default layer.")
+        else:
+            zipFile = Usd.ZipFile.Open(usdz)
+            if zipFile:
+                for fileName in zipFile.GetFileNames():
+                    return os.path.join(usdzDir, fileName)
+            raise ValueError("Default layer not found in usdz archive!")
+    
+    # Fallback to checking the files on disk instead of using USD.
     destFile = os.path.join(usdzDir, "defaultLayer.usd")
     if os.path.exists(destFile):
         return destFile
-    files = glob(os.path.join(usdzDir, "*.usd")) + glob(os.path.join(usdzDir, "*.usd[ac]"))
+    files = []
+    for ext in USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS + USD_CRATE_EXTS:
+        files += glob(os.path.join(usdzDir, "*." + ext))
     if files:
         if len(files) == 1:
             return files[0]
-        else:
-            raise ValueError("Ambiguous default layer in usdz archive!")
-    else:
-        raise ValueError("No default layer found in usdz archive!")
+        raise ValueError("Ambiguous default layer in usdz archive!")
+    raise ValueError("No default layer found in usdz archive!")
 
 
 def humanReadableSize(size):
@@ -354,7 +368,7 @@ def humanReadableSize(size):
     :Rtype:
         `str`
     """
-    for unit in ["bytes", "kB", "MB", "GB"]:
+    for unit in ("bytes", "kB", "MB", "GB"):
         if abs(size) < 1024:
             return "{:.1f} {}".format(size, unit)
         size /= 1024.0

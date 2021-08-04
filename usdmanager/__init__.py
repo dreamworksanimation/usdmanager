@@ -29,9 +29,13 @@ Class hierarchy:
       - TabBar
       - BrowserTab (one tab per file)
 
-        - LineNumbers
         - TextBrowser
+
+            - LineNumbers            
+
         - TextEdit
+
+            - PlainTextLineNumbers
 
 """
 
@@ -71,8 +75,8 @@ except ImportError:
 
 from . import highlighter, images_rc, utils
 from .constants import (
-    LINE_LIMIT, FILE_FILTER, FILE_FORMAT_NONE, FILE_FORMAT_USD, FILE_FORMAT_USDA,
-    FILE_FORMAT_USDC, FILE_FORMAT_USDZ, HTML_BODY, RECENT_FILES, RECENT_TABS, USD_EXTS)
+    LINE_LIMIT, FILE_FILTER, FILE_FORMAT_NONE, FILE_FORMAT_USD, FILE_FORMAT_USDA, FILE_FORMAT_USDC, FILE_FORMAT_USDZ,
+    HTML_BODY, RECENT_FILES, RECENT_TABS, USD_AMBIGUOUS_EXTS, USD_ASCII_EXTS, USD_CRATE_EXTS, USD_ZIP_EXTS, USD_EXTS)
 from .file_dialog import FileDialog
 from .file_status import FileStatus
 from .find_dialog import FindDialog
@@ -91,7 +95,7 @@ logging.basicConfig()
 
 # Qt.py compatibility.
 if Qt.IsPySide2:
-    # HACK for missing QUrl.path in PySide2 build.
+    # Add QUrl.path missing in PySide2 build.
     if not hasattr(QtCore.QUrl, "path"):
         def qUrlPath(self):
             return self.toString(QtCore.QUrl.PrettyDecoded | QtCore.QUrl.RemoveQuery)
@@ -152,6 +156,8 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         - Save As... doesn't add file to recent files or history menus.
         - Find with text containing a new line character does not work due to QTextDocument storing these as separate
           blocks.
+        - Line numbers width not always immediately updated after switching to new class.
+        - If app temp dir is removed while open and later tries to use it, it fails.
         - Qt.py problems:
 
           - PyQt5
@@ -638,6 +644,11 @@ a.binary {{color:#69F}}
         
         self.contextMenuPos = self.tabWidget.tabBar.mapFromParent(pos)
         indexOfClickedTab = self.tabWidget.tabBar.tabAt(self.contextMenuPos)
+
+        # Save the original state so we don't mess with the menu action, since this one action is re-used.
+        # TODO: Maybe make a new action instead of reusing this.
+        state = self.actionCloseTab.isEnabled()
+
         if indexOfClickedTab == -1:
             self.actionCloseTab.setEnabled(False)
             self.actionCloseOther.setEnabled(False)
@@ -654,6 +665,9 @@ a.binary {{color:#69F}}
         menu.exec_(self.tabWidget.mapToGlobal(pos))
         del menu
         self.contextMenuPos = None
+
+        # Restore previous action state.
+        self.actionCloseTab.setEnabled(state)
     
     def readSettings(self):
         """ Read in user config settings.
@@ -1078,12 +1092,12 @@ a.binary {{color:#69F}}
         crate = False
         _, ext = os.path.splitext(filePath)
         if _checkUsd:
-            if ext == ".usdc":
+            if ext[1:] in USD_CRATE_EXTS:
                 crate = True
-            elif ext == ".usd" and (fileFormat == FILE_FORMAT_USDC or (fileFormat == FILE_FORMAT_NONE and tab.fileFormat == FILE_FORMAT_USDC)):
+            elif ext[1:] in USD_AMBIGUOUS_EXTS and (fileFormat == FILE_FORMAT_USDC or (fileFormat == FILE_FORMAT_NONE and tab.fileFormat == FILE_FORMAT_USDC)):
                 crate = True
         if crate:
-            fd, tmpPath = tempfile.mkstemp(suffix=".usd", dir=self.app.tmpDir)
+            fd, tmpPath = tempfile.mkstemp(suffix="." + USD_AMBIGUOUS_EXTS[0], dir=self.app.tmpDir)
             os.close(fd)
             status = False
             if self.saveFile(tmpPath, fileFormat, tab=tab, _checkUsd=False):
@@ -1119,7 +1133,7 @@ a.binary {{color:#69F}}
                 self.showCriticalMessage("The file could not be saved!", traceback.format_exc(), "Save File")
                 return False
             else:
-                if ext in (".usd", ".usda"):
+                if ext[1:] in USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS:
                     tab.fileFormat = FILE_FORMAT_USDA
                 else:
                     tab.fileFormat = FILE_FORMAT_NONE
@@ -1176,20 +1190,21 @@ a.binary {{color:#69F}}
         filePath = filePaths[0]
         selectedFilter = dlg.selectedNameFilter()
         
-        # TODO: Is there a more generic way to enforce this?
         modifiedExt = False
         validExts = [x.lstrip("*") for x in selectedFilter.rsplit("(", 1)[1].rsplit(")", 1)[0].split()]
         _, ext = os.path.splitext(filePath)
         if selectedFilter == FILE_FILTER[FILE_FORMAT_USD]:
-            if ext not in validExts:
+            if ext[1:] in USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS:
+                # Default .usd to ASCII for now.
+                # TODO: Make that a user preference? usdcat defaults .usd to usdc.
+                fileFormat = FILE_FORMAT_USDA
+            elif ext[1:] in USD_CRATE_EXTS:
+                fileFormat = FILE_FORMAT_USDC
+            elif ext[1:] in USD_ZIP_EXTS:
+                fileFormat = FILE_FORMAT_USDZ
+            else:
                 self.showCriticalMessage("Please enter a valid extension for a usd file")
                 return self.getSaveAsPath(filePath, tab)
-            if ext == ".usda":
-                fileFormat = FILE_FORMAT_USDA
-            elif ext == ".usdc":
-                fileFormat = FILE_FORMAT_USDC
-            elif ext == ".usdz":
-                fileFormat = FILE_FORMAT_USDZ
         elif selectedFilter == FILE_FILTER[FILE_FORMAT_USDA]:
             fileFormat = FILE_FORMAT_USDA
             if ext not in validExts:
@@ -1203,14 +1218,18 @@ a.binary {{color:#69F}}
         elif selectedFilter == FILE_FILTER[FILE_FORMAT_USDZ]:
             fileFormat = FILE_FORMAT_USDZ
             if ext not in validExts:
-                # Sanity check in case we ever allow more extensions.
                 if len(validExts) == 1:
-                    # Just add the .usdz extension since it can't be anything else.
-                    filePath += ".usdz"
+                    # Just add the extension since it can't be anything else.
+                    filePath += "." + validExts[0]
                     modifiedExt = True
                 else:
+                    # Fallback in case we ever allow more extensions.
                     self.showCriticalMessage("Please enter a valid extension for a usdz file")
                     return self.getSaveAsPath(filePath, tab)
+        elif len(validExts) == 1 and ext not in validExts:
+            # Just add the extension since it can't be anything else.
+            filePath += "." + validExts[0]
+            modifiedExt = True
         
         info = QtCore.QFileInfo(filePath)
         self.lastOpenFileDir = info.absoluteDir().path()
@@ -1684,8 +1703,9 @@ a.binary {{color:#69F}}
         text = self.currTab.getCurrentTextWidget().textCursor().selectedText()
         if text:
             # Currently, find doesn't work with line breaks, so use the last line that contains any text.
-            text = [x for x in text.split('\u2029') if x][-1]
+            text = [x for x in text.split(u'\u2029') if x][-1]
             self.findBar.setText(text)
+            self.findBar.selectAll()
             self.validateFindBar(text)
     
     @Slot()
@@ -2842,11 +2862,11 @@ a.binary {{color:#69F}}
         if layer and '[' in layer:
             # Get the next level of .usdz file and unzip it.
             layer1, layer2 = layer.split('[', 1)
-            dest = utils.getUsdzLayer(usdPath, layer1)
+            dest = utils.getUsdzLayer(usdPath, layer1, fileStr)
             return self.readUsdzFile(dest, layer2)
         
         args = "?extractedDir={}".format(usdPath)
-        return utils.getUsdzLayer(usdPath, layer) + args
+        return utils.getUsdzLayer(usdPath, layer, fileStr) + args
     
     @Slot(QtCore.QUrl)
     def setSource(self, link, isNewFile=True, newTab=False, hScrollPos=0, vScrollPos=0, tab=None):
@@ -3005,7 +3025,7 @@ a.binary {{color:#69F}}
                                 break
                         else:
                             # No matching file parser found.
-                            if ext == "usdz":
+                            if ext in USD_ZIP_EXTS:
                                 layer = utils.queryItemValue(link, "layer")
                                 dest = self.readUsdzFile(absFilePath, layer)
                                 self.restoreOverrideCursor()
@@ -3043,6 +3063,9 @@ a.binary {{color:#69F}}
                                                 traceback.format_exc(), tab=tab)
                 
                 self.loadingProgressLabel.setText("Highlighting text")
+                self.labelFindPixmap.setVisible(False)
+                self.labelFindStatus.setVisible(False)
+                self.findRehighlightAll()
             else:
                 # Load an empty tab pointing to the nonexistent file.
                 self.setHighlighter(ext, tab=tab)
@@ -3113,7 +3136,7 @@ a.binary {{color:#69F}}
             self.linkHighlighted = QtCore.QUrl("")
             self.actionStop.setEnabled(False)
             self.updateButtons()
-            self.restoreOverrideCursor()
+        self.restoreOverrideCursor()
         if warning:
             self.showWarningMessage(warning, details)
         return success
@@ -4901,8 +4924,9 @@ class Settings(QtCore.QSettings):
         return default if val is None else val
 
     def boolValue(self, key, default=False):
-        """ Boolean values are saved to settings as the string "true" or "false".
-        Convert a setting back to a bool, since we don't have QVariant objects in Qt.py.
+        """ Boolean values are saved to settings as the string "true" or "false," except on a Mac, where the .plist
+        file saves them as actual booleans. Convert a setting back to a bool, since we don't have QVariant objects in
+        Qt.py.
 
         :Parameters:
             key : `str`
@@ -4918,7 +4942,7 @@ class Settings(QtCore.QSettings):
         val = self.value(key)
         if type(val) is bool:
             return val
-        return default if val is None else val == "true"
+        return bool(default) if val is None else val == "true"
 
 
 def run():

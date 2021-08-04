@@ -23,7 +23,8 @@ from os.path import sep, splitext
 from Qt.QtCore import QFileInfo, Slot
 
 from .. import utils
-from ..constants import FILE_FORMAT_USD, FILE_FORMAT_USDA, FILE_FORMAT_USDC
+from ..constants import FILE_FORMAT_USD, FILE_FORMAT_USDA, FILE_FORMAT_USDC,\
+    USD_AMBIGUOUS_EXTS, USD_ASCII_EXTS, USD_CRATE_EXTS
 from ..parser import AbstractExtParser
 
 
@@ -37,7 +38,7 @@ class UsdAsciiParser(AbstractExtParser):
     
     Treat as plain text. This is the simplest of the Usd parsers, which other USD parsers should inherit from.
     """
-    exts = ("usda",)
+    exts = USD_ASCII_EXTS
     fileFormat = FILE_FORMAT_USDA
     
     def __init__(self, *args, **kwargs):
@@ -130,7 +131,7 @@ class UsdAsciiParser(AbstractExtParser):
         # Make the HTML link.
         if self.exists[fullPath]:
             _, fullPathExt = splitext(fullPath)
-            if fullPathExt == ".usdc" or (fullPathExt == ".usd" and utils.isUsdCrate(fullPath)):
+            if fullPathExt[1:] in USD_CRATE_EXTS or (fullPathExt[1:] in USD_AMBIGUOUS_EXTS and utils.isUsdCrate(fullPath)):
                 queryParams.insert(0, "binary=1")
                 return '<a class="binary" href="file://{}?{}">{}</a>'.format(fullPath, "&".join(queryParams), linkPath)
             
@@ -187,7 +188,7 @@ class UsdCrateParser(UsdAsciiParser):
     Don't bother checking the fist line for PXR-USDC. If this is a valid ASCII USD file and not binary, but we use this
     parser accidentally, the file will load slower (since we do a usdcat conversion) but won't break anything.
     """
-    exts = ("usdc",)
+    exts = USD_CRATE_EXTS
     fileFormat = FILE_FORMAT_USDC
     
     def acceptsFile(self, fileInfo, link):
@@ -201,7 +202,7 @@ class UsdCrateParser(UsdAsciiParser):
                 Full URL, potentially with query string
         """
         ext = fileInfo.suffix()
-        return ext in self.exts or (ext == "usd" and utils.queryItemBoolValue(link, "binary"))
+        return ext in self.exts or (ext in USD_AMBIGUOUS_EXTS and utils.queryItemBoolValue(link, "binary"))
     
     def read(self, path):
         return self.parent().readUsdCrateFile(path)
@@ -210,7 +211,7 @@ class UsdCrateParser(UsdAsciiParser):
 class UsdParser(UsdAsciiParser):
     """ Parse ambiguous USD files that may be ASCII or crate.
     """
-    exts = ("usd",)
+    exts = USD_AMBIGUOUS_EXTS
     fileFormat = FILE_FORMAT_USD
     
     def acceptsFile(self, fileInfo, link):
