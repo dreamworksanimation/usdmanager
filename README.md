@@ -1,6 +1,7 @@
 ![USD Manager](docs/_static/logo_512.png?raw=true "USD Manager")
 
 [![Documentation Status](https://readthedocs.org/projects/usdmanager/badge/?version=stable)](https://usdmanager.readthedocs.io/en/stable/?badge=stable)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 [Website](http://www.usdmanager.org)
 

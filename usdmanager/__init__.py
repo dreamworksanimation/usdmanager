@@ -506,7 +506,7 @@ a.binary {{color:#69F}}
         
         # OS-specific hacks.
         # QSysInfo doesn't have productType until Qt5.
-        if (Qt.IsPySide2 or Qt.IsPyQt5) and QtCore.QSysInfo.productType() in ["osx", "macos"]:
+        if (Qt.IsPySide2 or Qt.IsPyQt5) and QtCore.QSysInfo.productType() in ("osx", "macos"):
             self.buttonTabList.setIcon(ft("1downarrow1"))
             
             # OSX likes to add its own Enter/Exit Full Screen item, not recognizing we already have one.

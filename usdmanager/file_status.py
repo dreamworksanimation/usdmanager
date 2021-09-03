@@ -114,4 +114,4 @@ class FileStatus(object):
         :Rtype:
             `bool`
         """
-        return self.status in [self.FILE_NEW, self.FILE_WRITABLE]
+        return self.status in (self.FILE_NEW, self.FILE_WRITABLE)
