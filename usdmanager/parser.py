@@ -19,7 +19,7 @@ File parsers
 
 import logging
 import re
-from cgi import escape
+from html import escape
 from collections import defaultdict
 
 from Qt.QtCore import QFile, QFileInfo, QObject, Signal, Slot
