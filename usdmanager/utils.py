@@ -75,7 +75,10 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
     
     if resolver is not None:
         try:
-            resolver.ConfigureResolverForAsset(path)
+            # ConfigureResolverForAsset no longer exists under Ar 2.0;
+            # this check is here for backwards compatibility with Ar 1.0
+            if hasattr(resolver, "ConfigureResolverForAsset"):
+                resolver.ConfigureResolverForAsset(path)
             context = resolver.CreateDefaultContextForAsset(path)
             with Ar.ResolverContextBinder(context):
                 anchoredPath = path if parentPath is None else resolver.AnchorRelativePath(parentPath, path)
