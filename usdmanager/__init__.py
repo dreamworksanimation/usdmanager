@@ -102,6 +102,29 @@ if Qt.IsPySide2:
             return self.toString(QtCore.QUrl.PrettyDecoded | QtCore.QUrl.RemoveQuery)
         
         QtCore.QUrl.path = qUrlPath
+elif Qt.IsPyQt5:
+    # Add query pair/value delimiters until we move fully onto Qt5 and switch to the QUrlQuery class.
+    def queryPairDelimiter(self):
+        try:
+            return self._queryPairDelimiter
+        except AttributeError:
+            self._queryPairDelimiter = "&"
+            return self._queryPairDelimiter
+    
+    def queryValueDelimiter(self):
+        try:
+            return self._queryValueDelimiter
+        except AttributeError:
+            self._queryValueDelimiter = "="
+            return self._queryValueDelimiter
+    
+    def setQueryDelimiters(self, valueDelimiter, pairDelimiter):
+        self._queryValueDelimiter = valueDelimiter
+        self._queryPairDelimiter = pairDelimiter
+    
+    QtCore.QUrl.queryPairDelimiter = queryPairDelimiter
+    QtCore.QUrl.queryValueDelimiter = queryValueDelimiter
+    QtCore.QUrl.setQueryDelimiters = setQueryDelimiters
 elif Qt.IsPySide or Qt.IsPyQt4:
     # Add basic support for QUrl.setQuery to PySide and PyQt4 (added in Qt5).
     def qUrlSetQuery(self, query, mode=QtCore.QUrl.TolerantMode):
