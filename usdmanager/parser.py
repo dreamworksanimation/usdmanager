@@ -166,7 +166,8 @@ class FileParser(QObject):
         html = ""
         # Escape HTML characters for proper display.
         # Do this before we add any actual HTML characters.
-        lines = [escape(x) for x in self.text]
+        # Because USD identifiers may use `&`, ignore USD matching lines.
+        lines = [x if finditer(x) else escape(x) for x in self.text]
         for i, line in enumerate(lines):
             if self._stop:
                 # If the user has requested to stop, load the rest of the document
