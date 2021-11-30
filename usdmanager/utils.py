@@ -390,8 +390,8 @@ def isUsdCrate(path):
     :Rtype:
         `bool`
     """
-    with open(path) as f:
-        return f.readline().startswith("PXR-USDC")
+    with open(path, "rb") as f:
+        return f.read(8).decode("utf-8") == "PXR-USDC"
 
 
 def isUsdExt(ext):
