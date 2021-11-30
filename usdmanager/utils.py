@@ -20,6 +20,7 @@ import importlib
 import logging
 import os
 import re
+import math
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -392,6 +393,27 @@ def isUsdCrate(path):
     """
     with open(path, "rb") as f:
         return f.read(8).decode("utf-8") == "PXR-USDC"
+
+
+def round(value, decimals=0):
+    """ Python 2/3 compatible rounding function. Lifted from
+    http://python3porting.com/differences.html#rounding-behavior
+
+    :Parameters:
+        value : `float`
+            The value to perform the rounding operation on.
+        decimals : `int`
+            The number of decimal places to retain.
+    :Returns:
+        The rounded value.
+    :Rtype:
+        `float`
+    """
+    p = 10 ** decimals
+    if value > 0:
+        return float(math.floor((value * p) + 0.5)) / p
+    else:
+        return float(math.ceil((value * p) - 0.5)) / p
 
 
 def isUsdExt(ext):
