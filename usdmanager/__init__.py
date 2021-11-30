@@ -798,8 +798,8 @@ a.binary {{color:#69F}}
         self.config.setValue("autoIndent", self.preferences['autoIndent'])
         
         # Write self.programs to settings object
-        exts = self.programs.keys()
-        progs = self.programs.values()
+        exts = list(self.programs.keys())
+        progs = list(self.programs.values())
         self.config.beginWriteArray("programs")
         for i in range(len(progs)):
             self.config.setArrayIndex(i)

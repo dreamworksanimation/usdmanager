@@ -20,6 +20,7 @@ import importlib
 import logging
 import os
 import re
+import sys
 import math
 import subprocess
 import tempfile
@@ -395,6 +396,17 @@ def isUsdCrate(path):
         return f.read(8).decode("utf-8") == "PXR-USDC"
 
 
+def isPy3():
+    """ Check if the application is running Python 3.
+    
+    :Returns:
+        If the application is running Python 3.
+    :Rtype:
+        `bool`
+    """
+    return sys.version_info[0] == 3
+
+
 def round(value, decimals=0):
     """ Python 2/3 compatible rounding function. Lifted from
     http://python3porting.com/differences.html#rounding-behavior
@@ -460,7 +472,10 @@ def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
     """
     import sys
     import xml.etree.ElementTree as xml
-    from StringIO import StringIO
+    if isPy3():
+        from io import StringIO
+    else:
+        from StringIO import StringIO
     from Qt import QtWidgets
     
     if not os.path.exists(uiFile) and not os.path.isabs(uiFile):
@@ -486,7 +501,7 @@ def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
         frame = {}
         uic.compileUi(f, o, indent=0)
         pyc = compile(o.getvalue(), "<string>", "exec")
-        exec pyc in frame
+        exec(pyc) in frame
         
         # Fetch the base_class and form class based on their type.
         form_class = frame["Ui_{}".format(form_class)]
