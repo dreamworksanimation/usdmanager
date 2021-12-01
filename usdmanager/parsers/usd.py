@@ -19,6 +19,7 @@ USD file parsers
 import logging
 import re
 from os.path import sep, splitext
+from xml.sax.saxutils import escape, unescape
 
 from Qt.QtCore import QFileInfo, Slot
 
@@ -45,9 +46,9 @@ class UsdAsciiParser(AbstractExtParser):
         super(UsdAsciiParser, self).__init__(*args, **kwargs)
         self.regex = None
         self.usdArrayRegEx = re.compile(
-            "((?:\s*(?:\w+\s+)?\w+\[\]\s+[\w:]+\s*=|\s*\d+:)\s*\[)"  # Array attribute definition and equal sign, or a frame number and colon, plus the opening bracket.
-            "\s*(.*)\s*"  # Everything inside the square brackets.
-            "(\].*)$"  # Closing bracket to the end of the line.
+            r"((?:\s*(?:\w+\s+)?\w+\[\]\s+[\w:]+\s*=|\s*\d+:)\s*\[)"  # Array attribute definition and equal sign, or a frame number and colon, plus the opening bracket.
+            r"\s*(.*)\s*"  # Everything inside the square brackets.
+            r"(\].*)$"  # Closing bracket to the end of the line.
         )
     
     @Slot()
@@ -93,6 +94,10 @@ class UsdAsciiParser(AbstractExtParser):
         :Raises ValueError:
             If path does not exist or cannot be resolved.
         """
+        # Since we had to escape all potential HTML-related characters before finding links, undo any replaced
+        # by escape if part of the linkPath itself. URIs may have & as part of the path for query parameters.
+        # We then have to re-escape the path before inserting it into HTML.
+        linkPath = unescape(linkPath)
         expanded_path = utils.expandPath(
             linkPath, nativeAbsPath, 
             self.sdf_format_args,
@@ -108,7 +113,7 @@ class UsdAsciiParser(AbstractExtParser):
         # Override any previously set sdf format args.
         local_sdf_args = self.sdf_format_args.copy()
         if match.group(3):
-            for kv in match.group(3).split("&amp;"):
+            for kv in match.group(3).split("&"):
                 k, v = kv.split("=", 1)
                 expanded_path = utils.expandPath(
                     v, nativeAbsPath, self.sdf_format_args,
@@ -131,22 +136,24 @@ class UsdAsciiParser(AbstractExtParser):
         # Make the HTML link.
         if self.exists[fullPath]:
             _, fullPathExt = splitext(fullPath)
-            if fullPathExt[1:] in USD_CRATE_EXTS or (fullPathExt[1:] in USD_AMBIGUOUS_EXTS and utils.isUsdCrate(fullPath)):
+            if fullPathExt[1:] in USD_CRATE_EXTS or (fullPathExt[1:] in USD_AMBIGUOUS_EXTS and
+                                                     utils.isUsdCrate(fullPath)):
                 queryParams.insert(0, "binary=1")
-                return '<a class="binary" href="file://{}?{}">{}</a>'.format(fullPath, "&".join(queryParams), linkPath)
+                return '<a class="binary" href="file://{}?{}">{}</a>'.format(fullPath, "&".join(queryParams),
+                                                                             escape(linkPath))
             
             queryStr = "?" + "&".join(queryParams) if queryParams else ""
-            return '<a href="file://{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
-        elif '*' in linkPath or '&lt;UDIM&gt;' in linkPath or '.#.' in linkPath:
+            return '<a href="file://{}{}">{}</a>'.format(fullPath, queryStr, escape(linkPath))
+        elif '*' in linkPath or '<UDIM>' in linkPath or '.#.' in linkPath:
             # Create an orange link for files with wildcards in the path,
             # designating zero or more files may exist.
             queryStr = "?" + "&".join(queryParams) if queryParams else ""
             return '<a title="Multiple files may exist" class="mayNotExist" href="file://{}{}">{}</a>'.format(
-                   fullPath, queryStr, linkPath)
+                fullPath, queryStr, escape(linkPath))
         
         queryStr = "?" + "&".join(queryParams) if queryParams else ""
         return '<a title="File not found" class="badLink" href="file://{}{}">{}</a>'.format(
-               fullPath, queryStr, linkPath)
+            fullPath, queryStr, escape(linkPath))
     
     def parseLongLine(self, line):
         """ Process a long line. Link parsing is skipped, and long USD arrays are truncated in the middle.

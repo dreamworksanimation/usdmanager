@@ -476,8 +476,7 @@ def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
         from io import StringIO
     else:
         from StringIO import StringIO
-    from Qt import QtWidgets
-    
+
     if not os.path.exists(uiFile) and not os.path.isabs(uiFile):
         if sourceFile is None:
             uiFile = resource_filename(__name__, uiFile)
