@@ -17,6 +17,7 @@
 Log file parser
 """
 import re
+from xml.sax.saxutils import escape
 
 from Qt.QtCore import QFileInfo, Slot
 
@@ -91,11 +92,11 @@ class LogParser(AbstractExtParser):
         
         # Make the HTML link.
         if self.exists[fullPath]:
-            return '<a href="file://{}{}">{}</a>'.format(fullPath, queryStr, linkPath)
-        elif '*' in linkPath or '&lt;UDIM&gt;' in linkPath or '.#.' in linkPath:
+            return '<a href="file://{}{}">{}</a>'.format(fullPath, queryStr, escape(linkPath))
+        elif '*' in linkPath or '<UDIM>' in linkPath or '.#.' in linkPath:
             # Create an orange link for files with wildcards in the path,
             # designating zero or more files may exist.
             return '<a title="Multiple files may exist" class="mayNotExist" href="file://{}{}">{}</a>'.format(
-                   fullPath, queryStr, linkPath)
+                   fullPath, queryStr, escape(linkPath))
         return '<a title="File not found" class="badLink" href="file://{}{}">{}</a>'.format(
-               fullPath, queryStr, linkPath)
+               fullPath, queryStr, escape(linkPath))

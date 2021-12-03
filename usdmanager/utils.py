@@ -20,6 +20,8 @@ import importlib
 import logging
 import os
 import re
+import sys
+import math
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -394,6 +396,38 @@ def isUsdCrate(path):
         return f.read(8).decode("utf-8") == "PXR-USDC"
 
 
+def isPy3():
+    """ Check if the application is running Python 3.
+    
+    :Returns:
+        If the application is running Python 3.
+    :Rtype:
+        `bool`
+    """
+    return sys.version_info[0] == 3
+
+
+def round(value, decimals=0):
+    """ Python 2/3 compatible rounding function. Lifted from
+    http://python3porting.com/differences.html#rounding-behavior
+
+    :Parameters:
+        value : `float`
+            The value to perform the rounding operation on.
+        decimals : `int`
+            The number of decimal places to retain.
+    :Returns:
+        The rounded value.
+    :Rtype:
+        `float`
+    """
+    p = 10 ** decimals
+    if value > 0:
+        return float(math.floor((value * p) + 0.5)) / p
+    else:
+        return float(math.ceil((value * p) - 0.5)) / p
+
+
 def isUsdExt(ext):
     """ Check if the given extension is an expected USD file extension.
 
@@ -438,9 +472,11 @@ def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
     """
     import sys
     import xml.etree.ElementTree as xml
-    from io import StringIO
-    from Qt import QtWidgets
-    
+    if isPy3():
+        from io import StringIO
+    else:
+        from StringIO import StringIO
+
     if not os.path.exists(uiFile) and not os.path.isabs(uiFile):
         if sourceFile is None:
             uiFile = resource_filename(__name__, uiFile)
@@ -464,7 +500,7 @@ def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
         frame = {}
         uic.compileUi(f, o, indent=0)
         pyc = compile(o.getvalue(), "<string>", "exec")
-        exec(pyc, frame)
+        exec(pyc) in frame
         
         # Fetch the base_class and form class based on their type.
         form_class = frame["Ui_{}".format(form_class)]

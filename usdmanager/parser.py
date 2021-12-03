@@ -19,8 +19,8 @@ File parsers
 
 import logging
 import re
-from html import escape
 from collections import defaultdict
+from xml.sax.saxutils import escape, unescape
 
 from Qt.QtCore import QFile, QFileInfo, QObject, Signal, Slot
 
@@ -112,7 +112,7 @@ class FileParser(QObject):
         self.regex = re.compile(
             r'(?:[\'"@]+)'                    # 1 or more single quote, double quote, or at symbol.
             r'('                              # Group 1: Path. This is the main group we are looking for. Matches based on extension before the pipe, or variable after the pipe.
-                r'[^\t\n\r\f\v\'"]*?'         # 0 or more (greedy) non-whitespace characters (regular spaces are ok) and no quotes followed by a period, then 1 of the acceptable file extensions. NOTE: Backslash exclusion removed for Windows support; make sure this doesn't negatively affect other systems.
+                r'[^\t\n\r\f\v\'"]*?'         # 0 or more (greedy) non-whitespace characters (regular spaces are ok) and no quotes followed by a period, then 1 of the acceptable file extensions.
                 r'\.(?:'+'|'.join(exts)+r')'  # followed by a period, then 1 of the acceptable file extensions
                 r'|\${[\w/${}:.-]+}'          # One or more of these characters -- A-Za-z0-9_-/${}:. -- inside the variable curly brackets -- ${}
             r')'                              # end group 1
@@ -182,7 +182,10 @@ class FileParser(QObject):
             # Search for multiple, non-overlapping links on each line.
             offset = 0
             for m in finditer(line):
-                linkPath = m.group(re_file_group)
+                # Since we had to escape all potential HTML-related characters before finding links, undo any replaced
+                # by escape if part of the linkPath itself. URIs may have & as part of the path for query parameters.
+                # We then have to re-escape the path before inserting it into HTML.
+                linkPath = unescape(m.group(re_file_group))
                 start = m.start(re_file_group)
                 end = m.end(re_file_group)
                 try:
@@ -190,7 +193,7 @@ class FileParser(QObject):
                 except ValueError:
                     # File doesn't exist or path cannot be resolved.
                     # Color it red.
-                    href = '<span title="File not found" class="badLink">{}</span>'.format(linkPath)
+                    href = '<span title="File not found" class="badLink">{}</span>'.format(escape(linkPath))
                 # Calculate difference in length between new link and original text so that we know where
                 # in the string to start the replacement when we have multiple matches in the same line.
                 line = line[:start + offset] + href + line[end + offset:]
@@ -254,13 +257,13 @@ class FileParser(QObject):
         
         # Make the HTML link.
         if self.exists[fullPath]:
-            return '<a href="file://{}">{}</a>'.format(fullPath, linkPath)
-        elif '*' in linkPath or '&lt;UDIM&gt;' in linkPath or '.#.' in linkPath:
+            return '<a href="file://{}">{}</a>'.format(fullPath, escape(linkPath))
+        elif '*' in linkPath or '<UDIM>' in linkPath or '.#.' in linkPath:
             # Create an orange link for files with wildcards in the path,
             # designating zero or more files may exist.
             return '<a title="Multiple files may exist" class="mayNotExist" href="file://{}">{}</a>'.format(
-                   fullPath, linkPath)
-        return '<a title="File not found" class="badLink" href="file://{}">{}</a>'.format(fullPath, linkPath)
+                   fullPath, escape(linkPath))
+        return '<a title="File not found" class="badLink" href="file://{}">{}</a>'.format(fullPath, escape(linkPath))
     
     def parseLongLine(self, line):
         """ Process a long line. Link parsing is skipped by default for lines over a certain length.
