@@ -17,10 +17,15 @@
 Line numbers widget for optimized display of line numbers on the left side of
 a text widget.
 """
+from __future__ import division
+
 from Qt import QtCore
 from Qt.QtCore import QRect, QSize, Slot
 from Qt.QtGui import QColor, QFont, QPainter, QTextCharFormat, QTextFormat
 from Qt.QtWidgets import QTextEdit, QWidget
+
+# Shadow round for Python 3 compatibility
+from .utils import round as round
 
 
 class PlainTextLineNumbers(QWidget):
