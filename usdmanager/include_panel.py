@@ -240,7 +240,8 @@ class IncludePanel(QtWidgets.QWidget):
     
     def setDirectory(self, directory):
         with overrideCursor():
-            if not directory.endswith('/'):
+            directory = str(directory) # it may be a ResolvedPath; convert to str
+            if not (directory.endswith('/') or directory.endswith('\\')):
                 directory += '/'
             self.fileNameEdit.completer().setCompletionPrefix(directory)
             root = self.fileModel.setRootPath(directory)

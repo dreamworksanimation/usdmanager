@@ -17,6 +17,7 @@
 USD file parsers
 """
 import logging
+import os
 import re
 from os.path import sep, splitext
 from xml.sax.saxutils import escape, unescape
@@ -132,32 +133,43 @@ class UsdAsciiParser(AbstractExtParser):
         # Propogate the extracted archive if this resolved file is in the same archive
         if self.extractedDir and fullPath.startswith(self.extractedDir + sep):
             queryParams.append("extractedDir=" + self.extractedDir)
-        
+
+        def pathForLink(path):
+            """Need three slashes before drive letter on Windows; this prepends one, so
+            with the usual two URL slashes we'll get the proper format."""
+            if os.name == 'nt' and re.match(r'^[a-zA-Z]:[/\\]', fullPath):
+                return '/' + path
+            else:
+                return path
+
         # Make the HTML link.
         if self.exists[fullPath]:
             _, fullPathExt = splitext(fullPath)
             if fullPathExt[1:] in USD_CRATE_EXTS or (fullPathExt[1:] in USD_AMBIGUOUS_EXTS and
                                                      utils.isUsdCrate(fullPath)):
                 queryParams.insert(0, "binary=1")
-                return '<a class="binary" href="file://{}?{}">{}</a>'.format(fullPath, "&".join(queryParams),
+                link = '<a class="binary" href="file://{}?{}">{}</a>'.format(pathForLink(fullPath), "&".join(queryParams),
                                                                              escape(linkPath))
-            
+                logger.debug('parseMatch: created binary link <%s> for path <%s>', link, linkPath)
+
             queryStr = "?" + "&".join(queryParams) if queryParams else ""
-            return '<a href="file://{}{}">{}</a>'.format(fullPath, queryStr, escape(linkPath))
+            link = '<a href="file://{}{}">{}</a>'.format(pathForLink(fullPath), queryStr, escape(linkPath))
+            logger.debug('parseMatch: created link <%s> for path <%s>', link, linkPath)
+            return link
         elif '*' in linkPath or '<UDIM>' in linkPath or '.#.' in linkPath:
             # Create an orange link for files with wildcards in the path,
             # designating zero or more files may exist.
             queryStr = "?" + "&".join(queryParams) if queryParams else ""
             return '<a title="Multiple files may exist" class="mayNotExist" href="file://{}{}">{}</a>'.format(
-                fullPath, queryStr, escape(linkPath))
-        
+                pathForLink(fullPath), queryStr, escape(linkPath))
+
         queryStr = "?" + "&".join(queryParams) if queryParams else ""
         return '<a title="File not found" class="badLink" href="file://{}{}">{}</a>'.format(
-            fullPath, queryStr, escape(linkPath))
-    
+            pathForLink(fullPath), queryStr, escape(linkPath))
+
     def parseLongLine(self, line):
         """ Process a long line. Link parsing is skipped, and long USD arrays are truncated in the middle.
-        
+
         :Parameters:
             line : `str`
                 Line of text

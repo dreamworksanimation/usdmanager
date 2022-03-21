@@ -83,7 +83,7 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
                 resolver.ConfigureResolverForAsset(path)
             context = resolver.CreateDefaultContextForAsset(path)
             with Ar.ResolverContextBinder(context):
-                anchoredPath = path if parentPath is None else resolver.AnchorRelativePath(parentPath, path)
+                anchoredPath = path if parentPath is None else resolver.CreateIdentifier(path)
                 resolved = resolver.Resolve(anchoredPath)
                 
                 # https://graphics.pixar.com/usd/docs/Usdz-File-Format-Specification.html#UsdzFileFormatSpecification-USDConstraints-AssetResolution
@@ -91,13 +91,13 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
                 # try to resolve based on the archive's default layer path.
                 if extractedDir and not os.path.exists(resolved):
                     default_layer = os.path.join(extractedDir, 'defaultLayer.usd')
-                    anchoredPath = resolver.AnchorRelativePath(default_layer, path)
+                    anchoredPath = resolver.CreateIdentifier(default_layer, path)
                     resolved = resolver.Resolve(anchoredPath)
-        except Exception:
-            logger.warn("Failed to resolve Asset path %s with parent %s", path, parentPath)
+        except Exception as e:
+            logger.warn("Failed to resolve Asset path %s with parent %s: %s", path, parentPath, e)
         else:
             if resolved:
-                return resolved
+                return str(resolved)
     
     # Return this best-attempt if all else fails.
     return QtCore.QDir.cleanPath(os.path.expandvars(path))
@@ -124,7 +124,7 @@ def expandUrl(path, parentPath=None):
         path, query = path.split("?", 1)
     else:
         query = None
-    url = QtCore.QUrl.fromLocalFile(os.path.abspath(expandPath(path, parentPath, sdf_format_args)))
+    url = QtCore.QUrl.fromLocalFile(os.path.abspath(str(expandPath(path, parentPath, sdf_format_args))))
     if query:
         url.setQuery(query)
     return url
