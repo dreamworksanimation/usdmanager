@@ -25,7 +25,7 @@ class FileDialog(QFileDialog):
     """
     def __init__(self, parent=None, caption="", directory="", filters=None, selectedFilter="", showHidden=False):
         """ Initialize the dialog.
-        
+
         :Parameters:
             parent : `QtCore.QObject`
                 Parent object
@@ -40,8 +40,7 @@ class FileDialog(QFileDialog):
             showHidden : `bool`
                 Show hidden files
         """
-        super(FileDialog, self).__init__(parent, caption, directory)
-        self.setNameFilters(filters or FILE_FILTER)
+        super(FileDialog, self).__init__(parent, caption, directory, ';;'.join(filters or FILE_FILTER))
         if selectedFilter:
             self.selectNameFilter(selectedFilter)
         if showHidden:

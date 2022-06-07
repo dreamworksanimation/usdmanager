@@ -83,7 +83,12 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
                 resolver.ConfigureResolverForAsset(path)
             context = resolver.CreateDefaultContextForAsset(path)
             with Ar.ResolverContextBinder(context):
-                anchoredPath = path if parentPath is None else resolver.CreateIdentifier(path)
+                if parentPath is None:
+                    anchoredPath = path
+                elif hasattr(resolver, "CreateIdentifier"):
+                    anchoredPath = resolver.CreateIdentifier(path)
+                else:
+                    anchoredPath = resolver.AnchorRelativePath(parentPath, path)
                 resolved = resolver.Resolve(anchoredPath)
                 
                 # https://graphics.pixar.com/usd/docs/Usdz-File-Format-Specification.html#UsdzFileFormatSpecification-USDConstraints-AssetResolution
@@ -91,7 +96,10 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
                 # try to resolve based on the archive's default layer path.
                 if extractedDir and not os.path.exists(resolved):
                     default_layer = os.path.join(extractedDir, 'defaultLayer.usd')
-                    anchoredPath = resolver.CreateIdentifier(default_layer, path)
+                    if hasattr(resolver, "CreateIdentifier"):
+                        anchoredPath = resolver.CreateIdentifier(default_layer, path)
+                    else:
+                        anchoredPath = resolver.AnchorRelativePath(default_layer, path)
                     resolved = resolver.Resolve(anchoredPath)
         except Exception as e:
             logger.warn("Failed to resolve Asset path %s with parent %s: %s", path, parentPath, e)
@@ -216,10 +224,56 @@ def generateTemporaryUsdFile(usdFileName, tmpDir=None):
     :Raises OSError:
         If usdcat fails
     """
-    fd, tmpFileName = tempfile.mkstemp(suffix="." + USD_AMBIGUOUS_EXTS[0], dir=tmpDir)
+    fd, tmpFileName = mkstemp(suffix="." + USD_AMBIGUOUS_EXTS[0], dir=tmpDir)
     os.close(fd)
     usdcat(QtCore.QDir.toNativeSeparators(usdFileName), tmpFileName, format="usda")
     return tmpFileName
+
+
+def mkdtemp(dir, **kwargs):
+    """ Make a temp dir, safely ensuring the parent temp dir still exists.
+
+    :Parameters:
+        dir : `str`
+            Parent directory
+    :Returns:
+        New temp directory
+    :Rtype:
+        `str`
+    """
+    try:
+        destDir = tempfile.mkdtemp(dir=dir, **kwargs)
+    except OSError:
+        if dir is not None and not os.path.exists(dir):
+            # Someone may have manually removed the temp dir while the app was open.
+            os.mkdir(dir)
+            return mkdtemp(dir, **kwargs)
+        else:
+            raise
+    return destDir
+
+
+def mkstemp(dir, **kwargs):
+    """ Make a temp file, safely ensuring the parent temp dir still exists.
+
+    :Parameters:
+        dir : `str`
+            Parent directory
+    :Returns:
+        New temp file
+    :Rtype:
+        `str`
+    """
+    try:
+        fd, tmpFileName = tempfile.mkstemp(dir=dir, **kwargs)
+    except OSError:
+        if dir is not None and not os.path.exists(dir):
+            # Someone may have manually removed the temp dir while the app was open.
+            os.mkdir(dir)
+            return mkstemp(dir, **kwargs)
+        else:
+            raise
+    return fd, tmpFileName
 
 
 def usdcat(inputFile, outputFile, format=None):
@@ -304,7 +358,7 @@ def unzip(path, tmpDir=None):
     """
     from zipfile import ZipFile
     
-    destDir = tempfile.mkdtemp(prefix="usdmanager_usdz_", dir=tmpDir)
+    destDir = mkdtemp(prefix="usdmanager_usdz_", dir=tmpDir)
     logger.debug("Extracting %s to %s", path, destDir)
     with ZipFile(QtCore.QDir.toNativeSeparators(path), 'r') as zipRef:
         zipRef.extractall(destDir)
@@ -535,7 +589,7 @@ def loadUiWidget(path, parent=None, source_path=None):
     if parent:
         #ui.setParent(parent)
         for member in dir(ui):
-            if not member.startswith('__') and member is not 'staticMetaObject':
+            if not member.startswith('__') and member != 'staticMetaObject':
                 setattr(parent, member, getattr(ui, member))
     return ui
 

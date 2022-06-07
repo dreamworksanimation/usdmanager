@@ -64,14 +64,15 @@ class IncludePanel(QtWidgets.QWidget):
         self.fileTypeLabelFiller = QtWidgets.QLabel(self)
         self.fileTypeComboFiller = QtWidgets.QLabel(self)
         self.buttonOpen = QtWidgets.QPushButton(QIcon.fromTheme("document-open"), "Open", self)
+        self.buttonOpen.setEnabled(False)
         
         # Item settings.
-        self.buttonHome.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_DirHomeIcon))
+        self.buttonHome.setIcon(QIcon.fromTheme("folder_home", self.style().standardIcon(QtWidgets.QStyle.SP_DirHomeIcon)))
         self.buttonHome.setToolTip("User's home directory")
         self.buttonHome.setAutoRaise(True)
         self.buttonOriginal.setToolTip("Original directory")
         self.lookInCombo.setMinimumSize(50,0)
-        self.toParentButton.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogToParent))
+        self.toParentButton.setIcon(QIcon.fromTheme("up", self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogToParent)))
         self.toParentButton.setAutoRaise(True)
         self.toParentButton.setToolTip("Parent directory")
         self.listView.setDragEnabled(True)
@@ -387,3 +388,6 @@ class IncludePanel(QtWidgets.QWidget):
         if indexes:
             idx = indexes[0]
             self.fileNameEdit.setText(str(idx.data()))
+            self.buttonOpen.setEnabled(True)
+        else:
+            self.buttonOpen.setEnabled(False)

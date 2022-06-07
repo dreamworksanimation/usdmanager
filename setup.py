@@ -19,7 +19,11 @@ from glob import glob
 
 
 PACKAGE = "usdmanager"
-exec(compile(open("{}/version.py".format(PACKAGE)).read(), "{}/version.py".format(PACKAGE), 'exec'))
+import sys
+if sys.version_info[0] < 3:
+    execfile("{}/version.py".format(PACKAGE))
+else:
+    exec(open("{}/version.py".format(PACKAGE)).read())
 VERSION = __version__
 
 

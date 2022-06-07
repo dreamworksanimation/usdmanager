@@ -35,6 +35,10 @@ logger = logging.getLogger(__name__)
 logging.basicConfig()
 
 
+NT = os.name == "nt"
+NT_REGEX = re.compile(r'^[a-zA-Z]:[/\\]')
+
+
 class UsdAsciiParser(AbstractExtParser):
     """ USD ASCII files.
     
@@ -137,10 +141,7 @@ class UsdAsciiParser(AbstractExtParser):
         def pathForLink(path):
             """Need three slashes before drive letter on Windows; this prepends one, so
             with the usual two URL slashes we'll get the proper format."""
-            if os.name == 'nt' and re.match(r'^[a-zA-Z]:[/\\]', fullPath):
-                return '/' + path
-            else:
-                return path
+            return '/' + path if NT and NT_REGEX.match(fullPath) else path
 
         # Make the HTML link.
         if self.exists[fullPath]:
