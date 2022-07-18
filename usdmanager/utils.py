@@ -30,12 +30,6 @@ from pkg_resources import resource_filename
 
 import Qt
 from Qt import QtCore, QtWidgets
-if Qt.IsPySide:
-    import pysideuic as uic
-elif Qt.IsPySide2:
-    import pyside2uic as uic
-else:
-    uic = Qt._uic
 
 from .constants import USD_EXTS, USD_AMBIGUOUS_EXTS, USD_ASCII_EXTS, USD_CRATE_EXTS
 
@@ -65,8 +59,8 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
         sdf_format_args : `dict` | None
             Dictionary of key/value `str` pairs from a path's :SDF_FORMAT_ARGS:
         extractedDir: `str` | None
-                If the file is part of an extracted usdz archive, this is the path
-                to the extracted dir of the archive.
+            If the file is part of an extracted usdz archive, this is the path
+            to the extracted dir of the archive.
     :Returns:
         Normalized path with variables expanded.
     :Rtype:
@@ -292,18 +286,13 @@ def usdcat(inputFile, outputFile, format=None):
     :Raises ValueError:
         If invalid format given compared to output file extension.
     """
-    if os.name == "nt":
-        # Files with spaces have to be double-quoted on Windows.
-        cmd = 'usdcat "{}" -o "{}"'.format(inputFile, outputFile)
-    else:
-        cmd = 'usdcat {} -o {}'.format(inputFile, outputFile)
-    
+    cmd = ['usdcat', inputFile, '-o', outputFile]
     if format and outputFile.endswith(".usd"):
         # For usdcat, use of --usdFormat requires output file end with '.usd' extension.
-        cmd += " --usdFormat {}".format(format)
-    logger.debug(cmd)
+        cmd += ['--usdFormat', format]
+    logger.debug(subprocess.list2cmdline(cmd))
     try:
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+        subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         raise OSError("Failed to convert file {}: {}".format(inputFile, e.output))
 
@@ -319,22 +308,15 @@ def usdzip(inputs, dest):
     :Raises OSError:
         If usdzip fails
     """
-    if os.name == "nt":
-        # Files with spaces have to be double-quoted on Windows.
-        if type(inputs) is list:
-            inputs = '" "'.join(inputs)
-        cmd = 'usdzip "{}" "{}"'.format(inputs, dest)
-        logger.debug(cmd)
+    cmd = ["usdzip"]
+    if type(inputs) is list:
+        cmd += inputs
     else:
-        cmd = ["usdzip"]
-        if type(inputs) is list:
-            cmd += inputs
-        else:
-            cmd.append(inputs)
-        cmd.append(dest)
-        logger.debug(subprocess.list2cmdline(cmd))
+        cmd.append(inputs)
+    cmd.append(dest)
+    logger.debug(subprocess.list2cmdline(cmd))
     try:
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+        subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         raise OSError("Failed to zip: {}".format(e.output))
 
@@ -508,60 +490,6 @@ def isUsdFile(path):
     return isUsdExt(os.path.splitext(path)[1])
 
 
-def loadUiType(uiFile, sourceFile=None, className="DefaultWidgetClass"):
-    """ Used to define a custom widget's class.
-    
-    :Parameters:
-        uiFile : `str`
-            UI file path. Can be relative if loading from the same directory as sourceFile.
-        sourceFile : `str`
-            File path of loading module.
-            Used to help find embedded resources and to find uiFile when the file path is relative.
-        className : `str`
-            Class name
-    :Returns:
-        Class type
-    :Rtype:
-        `type`
-    """
-    import sys
-    import xml.etree.ElementTree as xml
-    if isPy3():
-        from io import StringIO
-    else:
-        from StringIO import StringIO
-
-    if not os.path.exists(uiFile) and not os.path.isabs(uiFile):
-        if sourceFile is None:
-            uiFile = resource_filename(__name__, uiFile)
-            sourceDir = os.path.dirname(uiFile)
-        else:
-            sourceDir = os.path.dirname(sourceFile)
-            uiFile = os.path.join(sourceDir, uiFile)
-    else:
-        sourceDir = os.path.dirname(uiFile)
-    
-    # Search for resources in this tool's directory.
-    if sourceDir not in sys.path:
-        sys.path.insert(0, sourceDir)
-    
-    parsed = xml.parse(uiFile)
-    widget_class = parsed.find('widget').get('class')
-    form_class = parsed.find('class').text
-    
-    with open(uiFile) as f:
-        o = StringIO()
-        frame = {}
-        uic.compileUi(f, o, indent=0)
-        pyc = compile(o.getvalue(), "<string>", "exec")
-        exec(pyc) in frame
-        
-        # Fetch the base_class and form class based on their type.
-        form_class = frame["Ui_{}".format(form_class)]
-        base_class = eval("QtWidgets.{}".format(widget_class))
-    return type("{}Base".format(className), (form_class, base_class), {})
-
-
 def loadUiWidget(path, parent=None, source_path=None):
     """ Load a Qt Designer .ui file and return an instance of the user interface
     
@@ -602,14 +530,12 @@ def overrideCursor(cursor=QtCore.Qt.WaitCursor):
     Example:
         with overrideCursor():
             # do something that may raise an error
-    """
-    from Qt.QtWidgets import QApplication
-    
-    QApplication.setOverrideCursor(cursor)
+    """    
+    QtWidgets.QApplication.setOverrideCursor(cursor)
     try:
         yield
     finally:
-        QApplication.restoreOverrideCursor()
+        QtWidgets.QApplication.restoreOverrideCursor()
 
 
 def queryItemValue(url, key, default=None):

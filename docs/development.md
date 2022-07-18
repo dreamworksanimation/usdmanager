@@ -49,6 +49,17 @@ Example app config JSON file:
 }
 ```
 
+## Language-specific parsing
+
+When default path parsing logic is not good enough, you can add unique parsing for file types by subclassing the
+[parser.AbstractExtParser](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/parser.py).
+Save your new class in a file in the parsers directory. Set the class's extensions tuple (e.g. (".html", ".xml")) for a
+simple list of file extensions to match, or override the acceptsFile method for more advanced control.
+
+Within each parser, you can define custom menu items that will be added to the bottom of the Commands menu whenever a
+parser is active. For example, the [USD parser](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/parsers/usd.py)
+adds an "Open in usdview..." action.
+
 ## Syntax highlighting
 
 To add syntax highlighting for additional languages, subclass the

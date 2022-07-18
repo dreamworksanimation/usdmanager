@@ -505,7 +505,7 @@
     <addaction name="separator"/>
     <addaction name="actionOpenWith"/>
     <addaction name="actionTextEditor"/>
-    <addaction name="actionUsdView"/>
+    <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -994,18 +994,6 @@
    </property>
    <property name="text">
     <string>Open files in new tabs</string>
-   </property>
-  </action>
-  <action name="actionUsdView">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="icon">
-    <iconset resource="images.qrc">
-     <normaloff>:/images/images/usd.png</normaloff>:/images/images/usd.png</iconset>
-   </property>
-   <property name="text">
-    <string>Open with usd&amp;view...</string>
    </property>
   </action>
   <action name="actionTextEditor">

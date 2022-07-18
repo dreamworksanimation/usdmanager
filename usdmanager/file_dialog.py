@@ -41,6 +41,11 @@ class FileDialog(QFileDialog):
                 Show hidden files
         """
         super(FileDialog, self).__init__(parent, caption, directory, ';;'.join(filters or FILE_FILTER))
+
+        # The following line avoids this warning with Qt5:
+        # "GtkDialog mapped without a transient parent. This is discouraged."
+        self.setOption(QFileDialog.DontUseNativeDialog)
+
         if selectedFilter:
             self.selectNameFilter(selectedFilter)
         if showHidden:

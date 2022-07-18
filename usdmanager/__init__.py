@@ -94,21 +94,22 @@ logging.basicConfig()
 
 
 # Qt.py compatibility.
-if Qt.IsPySide2:
-    # Add QUrl.path missing in PySide2 build.
-    if not hasattr(QtCore.QUrl, "path"):
-        def qUrlPath(self):
-            """ Get the decoded URL without any query string.
+if Qt.IsPySide2 or Qt.IsPyQt5:
+    if Qt.IsPySide2:
+        # Add QUrl.path missing in PySide2 build.
+        if not hasattr(QtCore.QUrl, "path"):
+            def qUrlPath(self):
+                """ Get the decoded URL without any query string.
 
-            :Returns:
-                Decoded URL without query string
-            :Rtype:
-                `str`
-            """
-            return self.toString(QtCore.QUrl.PrettyDecoded | QtCore.QUrl.RemoveQuery)
+                :Returns:
+                    Decoded URL without query string
+                :Rtype:
+                    `str`
+                """
+                return self.toString(QtCore.QUrl.PrettyDecoded | QtCore.QUrl.RemoveQuery)
 
-        QtCore.QUrl.path = qUrlPath
-elif Qt.IsPyQt5:
+            QtCore.QUrl.path = qUrlPath
+
     # Add query pair/value delimiters until we move fully onto Qt5 and switch to the QUrlQuery class.
     def queryPairDelimiter(self):
         """ Get the query pair delimiter character.
@@ -183,7 +184,6 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
 
       - Ability to write and repackage as usdz
 
-    - Plug-ins based on active file type (ABC-specific commands, USD commands, etc.)
     - Different extensions to search for based on file type.
     - Add customized print options like name of file and date headers, similar to printing a web page.
     - Move setSource link parsing to a thread?
@@ -204,23 +204,10 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
     Known issues:
 
         - AddressBar file completer has problems occasionally.
-        - Save As... doesn't add file to recent files or history menus.
         - Find with text containing a new line character does not work due to QTextDocument storing these as separate
           blocks.
         - Line numbers width not always immediately updated after switching to new class.
-        - Qt.py problems:
-
-          - PyQt5
-
-            - Non-critical messages
-
-              - QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-mdsandell'
-              - QXcbConnection: XCB error: 3 (BadWindow), sequence: 878, resource id: 26166399, major code: 40
-                (TranslateCoords), minor code: 0
-
-          - PySide2
-
-            - Preferences dialog doesn't center on main window, can't load via loadUiType
+        - If a file loses edit permissions, it can stay in edit mode and let you make changes that can't be saved.
 
     """
 
@@ -269,6 +256,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         # Don't include the default parser in the list we iterate through to find compatible custom parsers,
         # since we only use it as a fallback.
         self.fileParserDefault = self.fileParsers.pop()
+        self._prevParser = None
         for module in utils.findModules("parsers"):
             for name, cls in inspect.getmembers(module, lambda x: inspect.isclass(x) and
                                                 issubclass(x, FileParser) and
@@ -614,7 +602,7 @@ a.binary {{color:#69F}}
             pos : `QtCore.QPoint`
                 Position of the right-click
         """
-        menu = self.currTab.textBrowser.createStandardContextMenu()
+        menu = self.currTab.textBrowser.createStandardContextMenu(pos)
         actions = menu.actions()
         # Right now, you may see the open in new tab action even if you aren't
         # hovering over a link. Ideally, because of imperfection with the hovering
@@ -635,8 +623,8 @@ a.binary {{color:#69F}}
             path = self.currTab.getCurrentPath()
             if path:
                 menu.addSeparator()
-                if utils.isUsdFile(path):
-                    menu.addAction(self.actionUsdView)
+                for args in self.currTab.parser.plugins:
+                    menu.addAction(*args)
                 menu.addAction(self.actionTextEditor)
                 menu.addAction(self.actionOpenWith)
                 menu.addSeparator()
@@ -668,8 +656,8 @@ a.binary {{color:#69F}}
         path = self.currTab.getCurrentPath()
         if path:
             menu.addSeparator()
-            if utils.isUsdFile(path):
-                menu.addAction(self.actionUsdView)
+            for args in self.currTab.parser.plugins:
+                menu.addAction(*args)
             menu.addAction(self.actionTextEditor)
             menu.addAction(self.actionOpenWith)
             menu.addSeparator()
@@ -937,7 +925,6 @@ a.binary {{color:#69F}}
         self.actionUncomment.triggered.connect(self.uncommentTextRequest)
         self.actionIndent.triggered.connect(self.indentText)
         self.actionUnindent.triggered.connect(self.unindentText)
-        self.actionUsdView.triggered.connect(self.launchUsdView)
         self.actionTextEditor.triggered.connect(self.launchTextEditor)
         self.actionOpenWith.triggered.connect(self.launchProgramOfChoice)
         self.actionOpenLinkWith.triggered.connect(self.onOpenLinkWith)
@@ -1303,11 +1290,13 @@ a.binary {{color:#69F}}
         # Now we have a valid path to save as.
         return filePath, fileFormat
 
-    @Slot()
-    def saveFileAs(self, tab=None):
+    @Slot(bool)
+    def saveFileAs(self, checked=False, tab=None):
         """ Save the current file with a new filename.
 
         :Parameters:
+            checked : `bool`
+                For signal only
             tab : `BrowserTab` | None
                 Tab to save. Defaults to current tab.
         :Returns:
@@ -1334,8 +1323,10 @@ a.binary {{color:#69F}}
                 else:
                     self.tabWidget.setTabIcon(idx, QtGui.QIcon())
                     self.tabWidget.setTabToolTip(idx, "{} - {}".format(fileName, filePath))
-                tab.updateHistory(QtCore.QUrl.fromLocalFile(filePath))
+                url = QtCore.QUrl.fromLocalFile(filePath)
+                tab.updateHistory(url)
                 tab.updateFileStatus()
+                self.updateRecentMenus(url, url.toString())
                 self.setHighlighter(ext, tab=tab)
                 if tab == self.currTab:
                     self.updateButtons()
@@ -1374,11 +1365,13 @@ a.binary {{color:#69F}}
         else:
             self.showWarningMessage("Selected file does not exist.")
 
-    @Slot()
-    def saveTab(self, tab=None):
+    @Slot(bool)
+    def saveTab(self, checked=False, tab=None):
         """ If the file already has a name, save it; otherwise, get a filename and save it.
 
         :Parameters:
+            checked : `bool`
+                For signal only
             tab : `BrowserTab` | None
                 Tab to save. Defaults to current tab.
         :Returns:
@@ -1640,19 +1633,21 @@ a.binary {{color:#69F}}
     # Edit Menu Methods
     ###
 
-    @Slot()
-    # TODO: Test this doesn't get "False" as the first param from using triggered signal on an action. Probably need to
-    # test on Mac.
-    def toggleEdit(self, tab=None):
+    @Slot(bool)
+    def toggleEdit(self, checked=False, tab=None):
         """ Switch between Browse mode and Edit mode.
 
+        :Parameters:
+            checked : `bool`
+                Unused. For signal/slot only
+            tab : `BrowserTab`
+                Tab to toggle edit mode on
         :Returns:
             True if we switched modes; otherwise, False.
             This only returns False if we were in Edit mode and the user cancelled due to unsaved changes.
         :Rtype:
             `bool`
         """
-        logger.debug("toggleEdit: %s", tab)  # TEMP for TODO
         tab = tab or self.currTab
 
         # Don't change between browse and edit mode if dirty. Saves if needed.
@@ -1771,10 +1766,13 @@ a.binary {{color:#69F}}
         self.findWidget.setVisible(False)
 
     @Slot()
-    def find(self, flags=None, startPos=3, loop=True):
+    @Slot(bool)
+    def find(self, checked=False, flags=None, startPos=3, loop=True):
         """ Find next hit for the search text.
 
         :Parameters:
+            checked : `bool`
+                For signal only
             flags
                 Options for document().find().
             startPos : `int`
@@ -2071,7 +2069,7 @@ a.binary {{color:#69F}}
                 if not status.writable:
                     continue
                 if not tab.inEditMode:
-                    self.toggleEdit(tab)
+                    self.toggleEdit(tab=tab)
                 thisCount = self.replaceAll(findText, replaceText, tab, report=False)
                 if thisCount:
                     files += 1
@@ -2329,13 +2327,16 @@ a.binary {{color:#69F}}
         """
         selectedIndex = self.tabWidget.tabBar.tabAt(self.contextMenuPos)
         selectedTab = self.tabWidget.widget(selectedIndex)
-        self.refreshTab(selectedTab)
+        self.refreshTab(tab=selectedTab)
 
     @Slot()
-    def refreshTab(self, tab=None):
+    @Slot(bool)
+    def refreshTab(self, checked=False, tab=None):
         """ Reload the file for a tab.
 
         :Parameters:
+            checked : `bool`
+                For signal only
             tab : `BrowserTab` | None
                 Tab to refresh. Defaults to current tab if None.
         :Returns:
@@ -2480,8 +2481,7 @@ a.binary {{color:#69F}}
         fd, tmpPath = utils.mkstemp(suffix=QtCore.QFileInfo(path).fileName(), dir=self.app.tmpDir)
         with os.fdopen(fd, 'w') as f:
             f.write(self.currTab.textEditor.toPlainText())
-        args = shlex.split(self.preferences['diffTool']) + [QtCore.QDir.toNativeSeparators(path), tmpPath]
-        self.launchProcess(args)
+        self.launchPathCommand(self.preferences['diffTool'], [QtCore.QDir.toNativeSeparators(path), tmpPath])
 
     @staticmethod
     def getPermissionString(path):
@@ -2606,29 +2606,23 @@ a.binary {{color:#69F}}
     def launchTextEditor(self):
         """ Launch the current file in a separate text editing application.
         """
-        path = QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath())
-        args = shlex.split(self.preferences['textEditor']) + [path]
-        self.launchProcess(args)
+        self.launchPathCommand(self.preferences['textEditor'],
+                               QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath()))
 
     @Slot()
     def launchUsdView(self):
         """ Launch the current file in usdview.
         """
-        app = self.app.DEFAULTS['usdview']
-        path = QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath())
-        # Files with spaces have to be double-quoted on Windows for usdview.
-        if os.name == "nt":
-            cmd = '{} "{}"'.format(app, path)
-            self.launchProcess(cmd, shell=True)
-        else:
-            args = [app, path]
-            self.launchProcess(args)
+        self.launchPathCommand(self.app.DEFAULTS['usdview'],
+                               QtCore.QDir.toNativeSeparators(self.currTab.getCurrentPath()))
 
-    @Slot()
-    def launchProgramOfChoice(self, path=None):
+    @Slot(bool)
+    def launchProgramOfChoice(self, checked=False, path=None):
         """ Open a file with a program given by the user.
 
         :Parameters:
+            checked : `bool`
+                For signal only
             path : `str`
                 File to open. If None, use currently open file.
         """
@@ -2638,9 +2632,9 @@ a.binary {{color:#69F}}
         # Get program of choice from user.
         prog, ok = QtWidgets.QInputDialog.getText(
             self, "Open with...",
-            "Please enter the program you would like to open this file with.\n\nYou may include command line "
-            "options as well, and the file path will be appended to the end of the command.\n\n"
-            "Example:\n    usdview --unloaded\n    rm\n",
+            "Please enter the program you would like to open this file with.\n\nYou may include command line options "
+            "as well, and the file path will be appended to the end of the command.\n\nUse {} if the path needs to go "
+            "in a specific place within the command.\n\nExample:\n    usdview --unloaded\n    ls {} -l\n",
             QtWidgets.QLineEdit.Normal, self.preferences['lastOpenWithStr'])
         # Return if cancel was pressed or nothing entered.
         if not ok or not prog:
@@ -2650,8 +2644,7 @@ a.binary {{color:#69F}}
         self.updatePreference('lastOpenWithStr', prog)
 
         # Launch program.
-        args = shlex.split(prog) + [path]
-        self.launchProcess(args)
+        self.launchPathCommand(prog, path)
 
     ###
     # Help Menu Methods
@@ -2795,7 +2788,7 @@ a.binary {{color:#69F}}
             # Make sure the tab appears as dirty so the user is prompted on exit to do so if they still haven't up to
             # that point.
             if not self.currTab.inEditMode:
-                self.toggleEdit(self.currTab)
+                self.toggleEdit(tab=self.currTab)
             self.currTab.setDirty()
             return False
 
@@ -3020,11 +3013,9 @@ a.binary {{color:#69F}}
             if ext in self.programs and self.programs[ext]:
                 if multFiles is not None:
                     # Assumes program takes a space-separated list of files.
-                    args = shlex.split(self.programs[ext]) + multFiles
-                    self.launchProcess(args)
+                    self.launchPathCommand(self.programs[ext], multFiles)
                 else:
-                    args = shlex.split(self.programs[ext]) + [nativeAbsPath]
-                    self.launchProcess(args)
+                    self.launchPathCommand(self.programs[ext], nativeAbsPath)
                 return self.setSourceFinish(tab=tab)
 
             if multFiles is not None:
@@ -3053,10 +3044,7 @@ a.binary {{color:#69F}}
             self.tabWidget.setTabToolTip(idx, "{} - {}".format(fileName, nativeAbsPath))
 
             # Take care of various history menus.
-            self.addItemToMenu(link, self.menuHistory, slot=self.setSource, maxLen=25, start=3, end=2)
-            self.addItemToMenu(link, self.menuOpenRecent, slot=self.openRecent, maxLen=RECENT_FILES)
-            self.menuOpenRecent.setEnabled(True)
-            self.addRecentFileToSettings(fullUrlStr)
+            self.updateRecentMenus(link, fullUrlStr)
 
             if fileExists:
                 # TODO: If files can load in parallel, this single progress bar would need to change.
@@ -3066,9 +3054,11 @@ a.binary {{color:#69F}}
 
                 try:
                     if self.validateFileSize(fileInfo):
+                        self._prevParser = tab.parser
                         for parser in self.fileParsers:
                             if parser.acceptsFile(fileInfo, link):
                                 logger.debug("Using parser %s", parser.__class__.__name__)
+                                tab.parser = parser
                                 break
                         else:
                             # No matching file parser found.
@@ -3081,7 +3071,7 @@ a.binary {{color:#69F}}
                                 return self.setSource(utils.strToUrl(dest), tab=tab)
                             else:
                                 logger.debug("Using default parser")
-                                parser = self.fileParserDefault
+                                tab.parser = self.fileParserDefault
 
                         # Stop Loading Tab stops the expensive parsing of the file
                         # for links, checking if the links actually exist, etc.
@@ -3150,7 +3140,7 @@ a.binary {{color:#69F}}
                 self.loadingProgressLabel.setVisible(False)
             else:
                 if not tab.inEditMode:
-                    self.toggleEdit(tab)
+                    self.toggleEdit(tab=tab)
                 tab.setDirty(True)
 
             logger.debug("Cleanup")
@@ -3323,6 +3313,7 @@ a.binary {{color:#69F}}
                 Index of the newly selected tab
         """
         prevMode = self.currTab.inEditMode
+        self._prevParser = self.currTab.parser
         self.currTab = self.tabWidget.widget(idx)
         if prevMode != self.currTab.inEditMode:
             self.editModeChanged.emit(self.currTab.inEditMode)
@@ -3376,6 +3367,7 @@ a.binary {{color:#69F}}
 
         self.breadcrumb.setText(self.currTab.breadcrumb)
         self.updateEditButtons()
+        self.updateParserPlugins()
 
         title = self.app.appDisplayName
         if self.currTab.isNewTab:
@@ -3396,10 +3388,6 @@ a.binary {{color:#69F}}
             self.actionOpenWith.setEnabled(enable)
         self.setWindowTitle(title)
 
-        path = self.currTab.getCurrentPath()
-        usd = utils.isUsdFile(path)
-        self.actionUsdView.setEnabled(usd)
-
         status = self.currTab.getFileStatus()
         self.fileStatusButton.setText(status.text)
         self.fileStatusButton.setIcon(status.icon)
@@ -3408,6 +3396,20 @@ a.binary {{color:#69F}}
         # Emit a signal that buttons are updating due to a file change.
         # Useful for plug-ins that may need to update their actions' enabled state.
         self.updatingButtons.emit()
+
+    def updateParserPlugins(self):
+        """ Update parser-specific UI actions when the file parser has changed
+        due to the display of a different file type.
+        """
+        if self.currTab.parser != self._prevParser:
+            # Clear old actions up to the last separator.
+            for action in reversed(self.menuCommands.actions()):
+                if action.isSeparator():
+                    break
+                self.menuCommands.removeAction(action)
+            if self.currTab.parser is not None:
+                for args in self.currTab.parser.plugins:
+                    self.menuCommands.addAction(*args)
 
     def updateEditButtons(self):
         """ Toggle edit action and button text.
@@ -3451,17 +3453,74 @@ a.binary {{color:#69F}}
         """
         self.buttonGo.setEnabled(bool(address.strip()))
 
-    def launchProcess(self, args, **kwargs):
-        """ Launch a program with the path `str` as an argument.
+    def launchPathCommand(self, command, path, **kwargs):
+        """ Launch a command with a file path either being appended to the end
+        or substituting curly brackets if present.
 
         Any additional keyword arguments are passed to the Popen object.
+
+        Example:
+            launchPathCommand("rez-env usd_view -c 'usdview {}'", "scene.usd")
+            runs: rez-env usd_view -c 'usdview scene.usd'
+
+            launchPathCommand("nedit", "scene.usd") runs: nedit scene.usd
+
+            launchPathCommand("ls", ["foo", "bar"]) runs: ls foo bar
+
+        :Parameters:
+            command : `str` | [`str`]
+                Command to run. If the path to open with the command cannot
+                simply be appended with a space at the end of the command, use
+                {} like standard python string formatting to denote where the
+                path should go.
+            path : `str` | [`str`]
+                File path `str`, space-separated list of files paths as a
+                single `str`, or `list` of `str` file paths
+        :Returns:
+            Returns process ID, or None if the subprocess fails
+        :Rtype:
+            `subprocess.Popen` | None
+        """
+        if not isinstance(command, list):
+            if '{}' in command:
+                try:
+                    quote = shlex.quote  # Python 3.3+ (shlex is already imported)
+                except AttributeError:
+                    from pipes import quote  # Deprecated since python 2.7
+                if isinstance(path, list):
+                    path = subprocess.list2cmdline(quote(x) for x in path)
+                try:
+                    command = command.format(quote(path))
+                except IndexError as e:
+                    self.showCriticalMessage("Invalid command: {}. If using curly brackets, please ensure there is only "
+                                            "one set.".format(e), details="Command: {}\nPath: {}".format(command, path))
+                    return
+                if not kwargs.get("shell"):
+                    command = shlex.split(command)
+            else:
+                command = shlex.split(command)
+                if isinstance(path, list):
+                    command += path
+                else:
+                    command.append(path)
+        else:
+            if isinstance(path, list):
+                command += path
+            elif '{}' in command:
+                while '{}' in command:
+                    command[command.index('{}')] = path
+            else:
+                command.append(path)
+        return self.launchProcess(command, **kwargs)
+
+    def launchProcess(self, args, **kwargs):
+        """ Launch a subprocess. Any additional keyword arguments are passed to the Popen object.
 
         :Parameters:
             args : `list` | `str`
                 A sequence of program arguments with the program as the first arg.
-                If also passing in shell=True, this should be a single string.
         :Returns:
-            Returns process ID or None
+            Returns process ID, or None if the subprocess fails
         :Rtype:
             `subprocess.Popen` | None
         """
@@ -3469,6 +3528,7 @@ a.binary {{color:#69F}}
             try:
                 if kwargs.get("shell"):
                     # With shell=True, convert args to a string to call Popen with.
+                    # Properly quote any args as necessary before using this.
                     logger.debug("Running Popen with shell=True")
                     if isinstance(args, list):
                         args = subprocess.list2cmdline(args)
@@ -3476,11 +3536,11 @@ a.binary {{color:#69F}}
                 else:
                     # Leave args as a list for Popen, but still log the string command.
                     logger.info(subprocess.list2cmdline(args))
-                p = subprocess.Popen(args, **kwargs)
-                return p
+                return subprocess.Popen(args, **kwargs)
             except Exception:
                 self.restoreOverrideCursor()
-                self.showCriticalMessage("Operation failed. {} may not be installed.".format(args[0]),
+                cmd = args[0] if isinstance(args, list) else args.split()[0]
+                self.showCriticalMessage("Operation failed. {} may not be installed.".format(cmd),
                                          traceback.format_exc())
 
     @Slot(bool)
@@ -3551,8 +3611,8 @@ a.binary {{color:#69F}}
             return msgBox.exec_()
         return QtWidgets.QMessageBox.warning(self, title, message)
 
-    @Slot(str, str, bool)
-    def _changeTabName(self, text, toolTip, dirty):
+    @Slot(QtWidgets.QWidget, str, str, bool)
+    def _changeTabName(self, tab, text, toolTip, dirty):
         """ Change the displayed name of a tab.
 
         Called via signal from a tab when the tab's dirty state changes.
@@ -3565,7 +3625,6 @@ a.binary {{color:#69F}}
             dirty : `bool`
                 Dirty state of tab
         """
-        tab = self.sender()
         idx = self.tabWidget.indexOf(tab)
         if idx == -1:
             logger.debug("Tab not found for %s", text)
@@ -3607,7 +3666,7 @@ a.binary {{color:#69F}}
             if btn == QtWidgets.QMessageBox.Cancel:
                 return False
             elif btn == QtWidgets.QMessageBox.Save:
-                return self.saveTab(tab)
+                return self.saveTab(tab=tab)
             else:  # Discard
                 tab.setDirty(False)
         return True
@@ -3650,7 +3709,7 @@ a.binary {{color:#69F}}
     def onOpenLinkWith(self):
         """ Show the "Open With..." dialog for the currently highlighted link.
         """
-        self.launchProgramOfChoice(QtCore.QDir.toNativeSeparators(self.linkHighlighted.toLocalFile()))
+        self.launchProgramOfChoice(path=QtCore.QDir.toNativeSeparators(self.linkHighlighted.toLocalFile()))
 
     @Slot(str)
     def onBreadcrumbActivated(self, path):
@@ -3670,6 +3729,20 @@ a.binary {{color:#69F}}
         """ Slot called when the mouse is hovering over a breadcrumb link.
         """
         self.statusbar.showMessage(path, 2000)
+
+    def updateRecentMenus(self, link, fullUrlStr):
+        """ Update the history and recently open files menus.
+
+        :Parameters:
+            link : `QtCore.QUrl`
+                URL to file
+            fullUrlStr : `str`
+                URL string representation
+        """
+        self.addItemToMenu(link, self.menuHistory, slot=self.setSource, maxLen=25, start=3, end=2)
+        self.addItemToMenu(link, self.menuOpenRecent, slot=self.openRecent, maxLen=RECENT_FILES)
+        self.menuOpenRecent.setEnabled(True)
+        self.addRecentFileToSettings(fullUrlStr)
 
 
 class AddressBar(QtWidgets.QLineEdit):
@@ -4246,7 +4319,7 @@ class BrowserTab(QtWidgets.QWidget):
     restoreTab = Signal(QtWidgets.QWidget)
     openFile = Signal(str)
     openOldUrl = Signal(QtCore.QUrl)
-    tabNameChanged = Signal(str, str, bool)
+    tabNameChanged = Signal(QtWidgets.QWidget, str, str, bool)
 
     def __init__(self, parent=None):
         """ Create and initialize the tab.
@@ -4270,6 +4343,7 @@ class BrowserTab(QtWidgets.QWidget):
         self.history = []  # List of FileStatus objects
         self.historyIndex = -1  # First file opened will be 0.
         self.fileFormat = FILE_FORMAT_NONE  # Used to differentiate between things like usda and usdc.
+        self.parser = None  # File parser for the currently active file type, used to add extra Commands menu actions.
         font = parent.font()
         prefs = parent.window().preferences
 
@@ -4575,7 +4649,7 @@ class BrowserTab(QtWidgets.QWidget):
             elif self.fileFormat == FILE_FORMAT_USDZ:
                 tipSuffix += " (zip)"
         text = "*{}*".format(fileName) if dirty else fileName
-        self.tabNameChanged.emit(text, text + tipSuffix, dirty)
+        self.tabNameChanged.emit(self, text, text + tipSuffix, dirty)
 
     def setIndentSettings(self, useSpaces=True, tabSpaces=4, autoIndent=True):
         """ Set various indent settings, such as spaces for tabs and auto indentation
@@ -4730,6 +4804,10 @@ class App(QtCore.QObject):
         # Initialize the application and settings.
         self._set_log_level()
         logger.debug("Qt version: %s %s", Qt.__binding__, Qt.__binding_version__)
+        # Avoid the following with PySide2: "Qt WebEngine seems to be initialized from a plugin. Please set
+        # Qt::AA_ShareOpenGLContexts using QCoreApplication::setAttribute before constructing QGuiApplication."
+        if Qt.IsPySide2:
+            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
         self.app = QtWidgets.QApplication(sys.argv)
         self.app.setApplicationName(self.appName)
         self.app.setWindowIcon(QtGui.QIcon(":images/images/logo.png"))

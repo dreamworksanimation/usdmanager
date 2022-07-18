@@ -13,54 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+""" Create the Find or Find/Replace dialog.
+"""
 from Qt.QtCore import Slot
-from Qt.QtWidgets import QStatusBar
+from Qt.QtWidgets import QDialog, QStatusBar
 from Qt.QtGui import QIcon, QTextDocument
 
-from .utils import loadUiType
+from .utils import loadUiWidget
 
-try:
-    UI_TYPE = loadUiType("find_dialog.ui")
-except KeyError:
-    # Building docs, have a safe fallback
-    from Qt.QtWidgets import QDialog
-    UI_TYPE = QDialog
 
-class FindDialog(UI_TYPE):
+class FindDialog(QDialog):
     """
     Find/Replace dialog
     """
     def __init__(self, parent=None, **kwargs):
         """ Initialize the dialog.
-        
+
         :Parameters:
             parent : `QtWidgets.QWidget` | None
                 Parent widget
         """
         super(FindDialog, self).__init__(parent, **kwargs)
-        self.setupUi(self)
+        self.setupUi()
         self.connectSignals()
-    
-    def setupUi(self, widget):
+
+    def setupUi(self):
+        """ Creates and lays out the widgets defined in the ui file.
         """
-        Creates and lays out the widgets defined in the ui file.
-        
-        :Parameters:
-            widget : `QtWidgets.QWidget`
-                Base widget
-        """
-        super(FindDialog, self).setupUi(widget)
+        self.baseInstance = loadUiWidget('find_dialog.ui', self)
         self.statusBar = QStatusBar(self)
         self.verticalLayout.addWidget(self.statusBar)
         self.findBtn.setIcon(QIcon.fromTheme("edit-find"))
         self.replaceBtn.setIcon(QIcon.fromTheme("edit-find-replace"))
-    
+
     def connectSignals(self):
-        """
-        Connect signals to slots.
+        """ Connect signals to slots.
         """
         self.findLineEdit.textChanged.connect(self.updateButtons)
-    
+
     def searchFlags(self):
         """ Get find flags based on checked options.
 
@@ -82,7 +72,7 @@ class FindDialog(UI_TYPE):
     def updateButtons(self, text):
         """
         Update enabled state of buttons as entered text changes.
-        
+
         :Parameters:
             text : `str`
                 Currently entered find text
@@ -96,13 +86,13 @@ class FindDialog(UI_TYPE):
         if not enabled:
             self.statusBar.clearMessage()
             self.setStyleSheet("QLineEdit#findLineEdit{background:none}")
-    
+
     @Slot(bool)
     def updateForEditMode(self, edit):
         """
         Show/Hide text replacement options based on if we are editing or not.
         If editing, allow replacement of the found text.
-        
+
         :Parameters:
             edit : `bool`
                 If in edit mode or not
