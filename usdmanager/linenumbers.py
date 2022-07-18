@@ -33,7 +33,7 @@ class PlainTextLineNumbers(QWidget):
     """
     def __init__(self, parent):
         """ Initialize the line numbers widget.
-        
+
         :Parameters:
             parent : `QPlainTextEdit`
                 Text widget
@@ -42,17 +42,18 @@ class PlainTextLineNumbers(QWidget):
         self.textWidget = parent
         self._hiddenByUser = False
         self._highlightCurrentLine = True
+        self._movePos = None
 
         # Monospaced font to keep width from shifting.
         font = QFont()
         font.setStyleHint(QFont.Courier)
         font.setFamily("Monospace")
         self.setFont(font)
-        
+
         self.connectSignals()
         self.updateLineWidth()
         self.highlightCurrentLine()
-    
+
     def blockCount(self):
         return self.textWidget.blockCount()
 
@@ -74,7 +75,7 @@ class PlainTextLineNumbers(QWidget):
         """
         if not self._highlightCurrentLine:
             return False
-        
+
         extras = [x for x in self.textWidget.extraSelections() if x.format.property(QTextFormat.UserProperty) != "line"]
         selection = QTextEdit.ExtraSelection()
         lineColor = QColor(QtCore.Qt.darkGray).darker() if self.window().isDarkTheme() else \
@@ -96,7 +97,7 @@ class PlainTextLineNumbers(QWidget):
         '''
         self.textWidget.setExtraSelections(extras)
         return True
-    
+
     def lineWidth(self, count=0):
         """ Calculate the width of the widget based on the block count.
 
@@ -113,6 +114,64 @@ class PlainTextLineNumbers(QWidget):
         except AttributeError:
             # Obsolete in Qt 5.
             return 6 + self.fontMetrics().width(blocks)
+
+    def mouseMoveEvent(self, event):
+        """ Track mouse movement to select more lines if press is active.
+
+        :Parameters:
+            event : `QMouseEvent`
+                Mouse move event
+        """
+        if event.buttons() != QtCore.Qt.LeftButton:
+            event.accept()
+            return
+
+        cursor = self.textWidget.textCursor()
+        cursor2 = self.textWidget.cursorForPosition(event.pos())
+        new = cursor2.position()
+        if new == self._movePos:
+            event.accept()
+            return
+
+        cursor.setPosition(self._movePos)
+        if new > self._movePos:
+            cursor.movePosition(cursor.StartOfLine)
+            cursor2.movePosition(cursor2.EndOfLine)
+        else:
+            cursor.movePosition(cursor.EndOfLine)
+            cursor2.movePosition(cursor2.StartOfLine)
+        cursor.setPosition(cursor2.position(), cursor.KeepAnchor)
+        self.textWidget.setTextCursor(cursor)
+        event.accept()
+
+    def mousePressEvent(self, event):
+        """ Select the line that was clicked. If moved while pressed, select
+        multiple lines as the mouse moves.
+
+        :Parameters:
+            event : `QMouseEvent`
+                Mouse press event
+        """
+        if event.buttons() != QtCore.Qt.LeftButton:
+            event.accept()
+            return
+
+        cursor = self.textWidget.cursorForPosition(event.pos())
+        cursor.select(cursor.LineUnderCursor)
+
+        # Allow Shift-selecting lines from the previous selection to new position.
+        if self.textWidget.textCursor().hasSelection() and event.modifiers() == QtCore.Qt.ShiftModifier:
+            cursor2 = self.textWidget.textCursor()
+            self._movePos = cursor2.position()
+            start = min(cursor.selectionStart(), cursor2.selectionStart())
+            end = max(cursor.selectionEnd(), cursor2.selectionEnd())
+            cursor.setPosition(start)
+            cursor.setPosition(end, cursor.KeepAnchor)
+        else:
+            self._movePos = cursor.position()
+
+        self.textWidget.setTextCursor(cursor)
+        event.accept()
 
     def onEditorResize(self):
         """ Adjust line numbers size if the text widget is resized.
@@ -157,15 +216,15 @@ class PlainTextLineNumbers(QWidget):
             top = bottom
             bottom = top + round(textWidget.blockBoundingRect(block).height())
             blockNumber += 1
-    
+
     def setVisible(self, visible):
         super(PlainTextLineNumbers, self).setVisible(visible)
         self._hiddenByUser = not visible
         self.updateLineWidth()
 
     def sizeHint(self):
-        return QSize(self.lineWidth(), 0)
-    
+        return QSize(self.lineWidth(), self.textWidget.height())
+
     @Slot(QRect, int)
     def updateLineNumbers(self, rect, dY):
         """ Scroll the line numbers or repaint the visible numbers.
@@ -176,7 +235,7 @@ class PlainTextLineNumbers(QWidget):
             self.update(0, rect.y(), self.width(), rect.height())
         if rect.contains(self.textWidget.viewport().rect()):
             self.updateLineWidth()
-    
+
     @Slot(int)
     def updateLineWidth(self, count=0):
         """ Adjust display of text widget to account for the widget of the line numbers.
@@ -203,34 +262,34 @@ class LineNumbers(PlainTextLineNumbers):
         self.textWidget.currentCharFormatChanged.connect(self.resizeAndUpdate)
         self.textWidget.cursorPositionChanged.connect(self.highlightCurrentLine)
         self.doc.blockCountChanged.connect(self.updateLineWidth)
-    
+
     @Slot()
     def highlightCurrentLine(self):
         """ Make sure the active line number is redrawn in bold by calling update.
         """
         if super(LineNumbers, self).highlightCurrentLine():
             self.update()
-    
+
     @Slot(QTextCharFormat)
     def resizeAndUpdate(self, *args):
         """ Resize bar if needed.
         """
         self.updateLineWidth()
         super(LineNumbers, self).update()
-    
+
     def paintEvent(self, event):
         """ Draw line numbers.
         """
         painter = QPainter(self)
         painter.fillRect(event.rect(), QColor(QtCore.Qt.darkGray).darker(300) if self.window().isDarkTheme() \
                          else QtCore.Qt.lightGray)
-        
+
         textWidget = self.textWidget
         doc = textWidget.document()
         vScrollPos = textWidget.verticalScrollBar().value()
         pageBtm = vScrollPos + textWidget.viewport().height()
         currBlock = doc.findBlock(textWidget.textCursor().position())
-        
+
         width = self.width() - 3  # 3 is magic padding number
         height = textWidget.fontMetrics().height()
         flags = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
@@ -244,19 +303,20 @@ class LineNumbers(PlainTextLineNumbers):
 
         # Find roughly the current top-most visible block.
         block = doc.begin()
-        lineHeight = doc.documentLayout().blockBoundingRect(block).height()
-        
+        layout = doc.documentLayout()
+        lineHeight = layout.blockBoundingRect(block).height()
+
         block = doc.findBlockByNumber(int(vScrollPos / lineHeight))
         currLine = block.blockNumber()
-        
+
         while block.isValid():
             currLine += 1
-            
+
             # Check if the position of the block is outside the visible area.
-            yPos = doc.documentLayout().blockBoundingRect(block).topLeft().y()
+            yPos = layout.blockBoundingRect(block).topLeft().y()
             if yPos > pageBtm:
                 break
-            
+
             # Make the line number for the selected line bold.
             font.setBold(block == currBlock)
             painter.setFont(font)

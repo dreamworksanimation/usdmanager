@@ -62,13 +62,18 @@ class FileParser(QObject):
                 Parent object (main window)
         """
         super(FileParser, self).__init__(parent)
+
+        # List of args to pass to addAction on the Commands menu.
+        # Each item in the list represents a new menu item.
+        self.plugins = []
+    
         self.regex = None
         self._stop = False
         self._cleanup()
         
         self.progress.connect(parent.setLoadingProgress)
         self.status.connect(parent.loadingProgressLabel.setText)
-        parent.actionStop.triggered.connect(self.stop)
+        parent.actionStop.triggered.connect(self.stopTriggered)
         parent.compileLinkRegEx.connect(self.compile)
     
     def acceptsFile(self, fileInfo, link):
@@ -262,7 +267,7 @@ class FileParser(QObject):
             # Create an orange link for files with wildcards in the path,
             # designating zero or more files may exist.
             return '<a title="Multiple files may exist" class="mayNotExist" href="file://{}">{}</a>'.format(
-                   fullPath, escape(linkPath))
+                fullPath, escape(linkPath))
         return '<a title="File not found" class="badLink" href="file://{}">{}</a>'.format(fullPath, escape(linkPath))
     
     def parseLongLine(self, line):
@@ -295,7 +300,6 @@ class FileParser(QObject):
         with open(path) as f:
             return f.readlines()
     
-    @Slot(bool)
     def stop(self, stop=True):
         """ Request to stop parsing the active file for links.
         
@@ -306,6 +310,18 @@ class FileParser(QObject):
                 To stop or not
         """
         self._stop = stop
+
+    @Slot(bool)
+    def stopTriggered(self, checked=False):
+        """ Request to stop parsing the active file for links.
+        
+        Don't override.
+        
+        :Parameters:
+            checked : `bool`
+                For signal only
+        """
+        self.stop()
 
 
 class AbstractExtParser(FileParser):

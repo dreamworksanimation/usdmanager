@@ -23,6 +23,7 @@ from os.path import sep, splitext
 from xml.sax.saxutils import escape, unescape
 
 from Qt.QtCore import QFileInfo, Slot
+from Qt.QtGui import QIcon
 
 from .. import utils
 from ..constants import FILE_FORMAT_USD, FILE_FORMAT_USDA, FILE_FORMAT_USDC,\
@@ -46,10 +47,11 @@ class UsdAsciiParser(AbstractExtParser):
     """
     exts = USD_ASCII_EXTS
     fileFormat = FILE_FORMAT_USDA
-    
+
     def __init__(self, *args, **kwargs):
         super(UsdAsciiParser, self).__init__(*args, **kwargs)
         self.regex = None
+        self.plugins.append((QIcon(":/images/images/usd.png"), "Open with usdview...", self.parent().launchUsdView))
         self.usdArrayRegEx = re.compile(
             r"((?:\s*(?:\w+\s+)?\w+\[\]\s+[\w:]+\s*=|\s*\d+:)\s*\[)"  # Array attribute definition and equal sign, or a frame number and colon, plus the opening bracket.
             r"\s*(.*)\s*"  # Everything inside the square brackets.
