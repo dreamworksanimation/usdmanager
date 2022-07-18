@@ -9,6 +9,6 @@ build:
 requirements_file: docs/requirements.txt
 
 python:
-  version: 2.7
+  version: 3
   setup_py_install: true
   pip_install: false
