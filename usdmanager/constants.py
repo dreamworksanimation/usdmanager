@@ -32,16 +32,18 @@ FILE_FILTER = (
     "USD - ASCII (*.{})".format(" *.".join(USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS)),
     "USD - Crate (*.{})".format(" *.".join(USD_AMBIGUOUS_EXTS + USD_CRATE_EXTS)),
     "USD - Zip (*.{})".format(" *.".join(USD_ZIP_EXTS)),
+    "Text Files (*.html *.json *.log *.py *.txt *.xml *.yaml *.yml)",
     "All Files (*)"
 )
 
 # Format of the currently active file. Also, the index in the file filter list for that type.
 # Used for things such as differentiating between file types when using the generic .usd extension.
-FILE_FORMAT_USD  = 0  # Generic USD file (usda or usdc)
+FILE_FORMAT_USD = 0  # Generic USD file (usda or usdc)
 FILE_FORMAT_USDA = 1  # ASCII USD file
 FILE_FORMAT_USDC = 2  # Binary USD crate file
 FILE_FORMAT_USDZ = 3  # Zip-compressed USD package
-FILE_FORMAT_NONE = 4  # Generic text file
+FILE_FORMAT_TXT = 4  # Plain text file
+FILE_FORMAT_NONE = 5  # Generic file, presumably plain text
 
 # Default template for display files with links.
 # When dark theme is enabled, this is overridden in __init__.py.
@@ -54,7 +56,8 @@ a.binary {{color:#69F}}
 
 # Set a length limit on parsing for links and syntax highlighting on long lines. 999 chosen semi-arbitrarily to speed
 # up things like crate files with really long timeSamples lines that otherwise lock up the UI.
-# TODO: Potentially truncate the display of long lines, too, since it can slow down interactivity of the Qt UI. Maybe make it a [...] link to display the full line again?
+# TODO: Potentially truncate the display of long lines, too, since it can slow down interactivity of the Qt UI.
+# Maybe make it a [...] link to display the full line again?
 LINE_CHAR_LIMIT = 999
 
 # Truncate loading files with more lines than this.

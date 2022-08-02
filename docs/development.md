@@ -24,7 +24,9 @@ Supported keys include:
 - **appURL _(str)_** - Documentation URL. Defaults to the public GitHub repository.
 - **defaultPrograms _({str: str})_** - File extension keys with the command to open the file type as the values.
 - **diffTool _(str)_** - Diff command. Defaults to xdiff.
-- **iconTheme _(str)_** - QtGui.QIcon theme name. Defaults to crystal_project.
+- **iconTheme _(str)_** - QtGui.QIcon theme name. Defaults to crystal_project. Can be overridden by iconThemes for a
+specific app theme.
+- **iconThemes _(dict)_** - QtGui.QIcon theme name to use per theme the app supports ("light" and "dark")
 - **textEditor _(str)_** - Text editor to use when opening files externally if $EDITOR environment variable is
 not set. Defaults to nedit.
 - **themeSearchPaths _([str])_** - Paths to prepend to QtGui.QIcon's theme search paths.
@@ -43,7 +45,10 @@ Example app config JSON file:
         "tx": "rez-run openimageio_arras -- iv"
     },
     "diffTool": "python /usr/bin/meld",
-    "iconTheme": "gnome",
+    "iconThemes": {
+        "light": "crystal_project",
+        "dark": "gnome"
+    },
     "textEditor": "gedit",
     "themeSearchPaths": []
 }
@@ -117,13 +122,13 @@ class CustomExample(Plugin):
 
 ## Icons
 
-Most icons in the app come from themes pre-installed on your system, ideally following the
+Some icons in the app come from themes pre-installed on your system, ideally following the
 [freedesktop.org standards](https://standards.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html).
 The preferred icon set that usdmanager was originally developed with is Crystal Project Icons. These icons are licensed
-under LGPL and available via pypi and GitHub here: https://github.com/ambv/django-crystal-small. While not required for
-the application to work, if you would like these icons to get the most out of the application, please install them to a
-directory named crystal_project under one of the directories listed by `Qt.QtGui.QIcon.themeSearchPaths()` (e.g.
-/usr/share/icons/crystal_project).
+under LGPL and available via PyPI and GitHub here: https://github.com/mds-dwa/crystal-small. While not required for
+the application to work, if you would like these icons to get the most out of the application, please ensure crystal-small
+is installed via pip (already part of the default setup) or install them to a directory named crystal_project under one
+of the directories listed by `Qt.QtGui.QIcon.themeSearchPaths()` (e.g. /usr/share/icons/crystal_project).
 
 Additional icons for custom plug-ins can be placed in the plugins directory and then added to the
 [usdmanager/plugins/images.qrc](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/plugins/images.qrc) file. After adding a file to images.rc, run the

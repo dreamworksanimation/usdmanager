@@ -17,9 +17,9 @@
 """
 from Qt.QtCore import Slot
 from Qt.QtWidgets import QDialog, QStatusBar
-from Qt.QtGui import QIcon, QTextDocument
+from Qt.QtGui import QTextDocument
 
-from .utils import loadUiWidget
+from .utils import icon, loadUiWidget
 
 
 class FindDialog(QDialog):
@@ -43,8 +43,8 @@ class FindDialog(QDialog):
         self.baseInstance = loadUiWidget('find_dialog.ui', self)
         self.statusBar = QStatusBar(self)
         self.verticalLayout.addWidget(self.statusBar)
-        self.findBtn.setIcon(QIcon.fromTheme("edit-find"))
-        self.replaceBtn.setIcon(QIcon.fromTheme("edit-find-replace"))
+        self.findBtn.setIcon(icon("edit-find"))
+        self.replaceBtn.setIcon(icon("edit-find-replace"))
 
     def connectSignals(self):
         """ Connect signals to slots.
@@ -107,7 +107,7 @@ class FindDialog(QDialog):
         self.buttonBox2.setVisible(not edit)
         if edit:
             self.setWindowTitle("Find/Replace")
-            self.setWindowIcon(QIcon.fromTheme("edit-find-replace"))
+            self.setWindowIcon(icon("edit-find-replace"))
         else:
             self.setWindowTitle("Find")
-            self.setWindowIcon(QIcon.fromTheme("edit-find"))
+            self.setWindowIcon(icon("edit-find"))

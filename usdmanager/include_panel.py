@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+""" Left-hand side file browser.
+"""
 import os
 
 from Qt import QtCore, QtWidgets
 from Qt.QtCore import Signal, Slot
-from Qt.QtGui import QIcon
 
-from .utils import expandPath, overrideCursor
+from .utils import expandPath, icon, overrideCursor
 
 
 class IncludePanel(QtWidgets.QWidget):
@@ -63,16 +64,16 @@ class IncludePanel(QtWidgets.QWidget):
         self.listView = QtWidgets.QListView(self)
         self.fileTypeLabelFiller = QtWidgets.QLabel(self)
         self.fileTypeComboFiller = QtWidgets.QLabel(self)
-        self.buttonOpen = QtWidgets.QPushButton(QIcon.fromTheme("document-open"), "Open", self)
+        self.buttonOpen = QtWidgets.QPushButton(icon("document-open"), "Open", self)
         self.buttonOpen.setEnabled(False)
         
         # Item settings.
-        self.buttonHome.setIcon(QIcon.fromTheme("folder_home", self.style().standardIcon(QtWidgets.QStyle.SP_DirHomeIcon)))
+        self.buttonHome.setIcon(icon("folder-home", self.style().standardIcon(QtWidgets.QStyle.SP_DirHomeIcon)))
         self.buttonHome.setToolTip("User's home directory")
         self.buttonHome.setAutoRaise(True)
         self.buttonOriginal.setToolTip("Original directory")
-        self.lookInCombo.setMinimumSize(50,0)
-        self.toParentButton.setIcon(QIcon.fromTheme("up", self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogToParent)))
+        self.lookInCombo.setMinimumSize(50, 0)
+        self.toParentButton.setIcon(icon("folder-up", self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogToParent)))
         self.toParentButton.setAutoRaise(True)
         self.toParentButton.setToolTip("Parent directory")
         self.listView.setDragEnabled(True)
@@ -89,14 +90,14 @@ class IncludePanel(QtWidgets.QWidget):
         self.buttonOpen.setFocusPolicy(QtCore.Qt.NoFocus)
         
         # Item size policies.
-        self.lookInCombo.setSizePolicy   (QtWidgets.QSizePolicy.Ignored,   QtWidgets.QSizePolicy.Fixed)
-        self.toParentButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed,     QtWidgets.QSizePolicy.Fixed)
-        self.buttonHome.setSizePolicy    (QtWidgets.QSizePolicy.Fixed,     QtWidgets.QSizePolicy.Fixed)
-        self.buttonOriginal.setSizePolicy(QtWidgets.QSizePolicy.Fixed,     QtWidgets.QSizePolicy.Fixed)
-        self.fileNameLabel.setSizePolicy (QtWidgets.QSizePolicy.Minimum,   QtWidgets.QSizePolicy.Fixed)
-        self.fileTypeCombo.setSizePolicy (QtWidgets.QSizePolicy.Ignored,   QtWidgets.QSizePolicy.Fixed)
-        self.fileTypeLabel.setSizePolicy (QtWidgets.QSizePolicy.Minimum,   QtWidgets.QSizePolicy.Fixed)
-        self.buttonOpen.setSizePolicy    (QtWidgets.QSizePolicy.Fixed,     QtWidgets.QSizePolicy.Fixed)
+        self.lookInCombo.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
+        self.toParentButton.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.buttonHome.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.buttonOriginal.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.fileNameLabel.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.fileTypeCombo.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
+        self.fileTypeLabel.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.buttonOpen.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         
         # Layouts.
         self.include1Layout = QtWidgets.QHBoxLayout()

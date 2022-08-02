@@ -1,4 +1,9 @@
 {
     "defaultPrograms": {
+    },
+    "themeSearchPaths": [],
+    "iconThemes": {
+        "light": "crystal_project",
+        "dark": "crystal_project"
     }
 }
