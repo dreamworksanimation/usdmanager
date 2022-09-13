@@ -18,11 +18,11 @@
 """
 
 from Qt.QtCore import Slot, QRegExp
-from Qt.QtGui import QIcon, QRegExpValidator
+from Qt.QtGui import QRegExpValidator
 from Qt.QtWidgets import QAbstractButton, QDialog, QDialogButtonBox, QFontDialog, QLineEdit, QMessageBox, QVBoxLayout
 
 from .constants import LINE_LIMIT
-from .utils import loadUiWidget
+from .utils import icon, loadUiWidget
 
 
 class PreferencesDialog(QDialog):
@@ -50,9 +50,9 @@ class PreferencesDialog(QDialog):
         """ Creates and lays out the widgets defined in the ui file.
         """
         self.baseInstance = loadUiWidget("preferences_dialog.ui", self)
-        self.setWindowIcon(QIcon.fromTheme("preferences-system"))
-        self.buttonFont.setIcon(QIcon.fromTheme("preferences-desktop-font"))
-        self.buttonNewProg.setIcon(QIcon.fromTheme("list-add"))
+        self.setWindowIcon(icon("preferences-system"))
+        self.buttonFont.setIcon(icon("preferences-desktop-font"))
+        self.buttonNewProg.setIcon(icon("list-add"))
 
         # ----- General tab -----
         # Set initial preferences.

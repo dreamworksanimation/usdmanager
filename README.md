@@ -9,7 +9,7 @@ USD Manager is an open-source, python-based Qt tool for browsing, managing, and 
 combining the best features from your favorite web browser and text editor into one application, with hooks to deeply
 integrate with other pipeline tools. It is developed and maintained by [DreamWorks Animation](http://www.dreamworksanimation.com)
 for use with USD and other hierarchical, text-based workflows, primarily geared towards feature film production. While
-primarily designed around PyQt4, USD Manager uses the Qt.py compatibility library to allow working with PyQt4, PyQt5,
+originally designed around PyQt4, USD Manager uses the Qt.py compatibility library to allow working with PyQt4, PyQt5,
 PySide, or PySide2 for Qt bindings.
 
 ![USD Manager screenshot](docs/_static/screenshot_island.png?raw=true "USD Manager")
@@ -42,8 +42,14 @@ Installing USD Manager
 Requirements
 ------------
 
-usdmanager requires Python 2, [Qt.py](https://github.com/mottosso/Qt.py) and [setuptools](https://github.com/pypa/setuptools)
-(can be handled by setup.py), and one of Qt.py's 4 supported Qt bindings, which will need to be installed separately.
+usdmanager requires [Python](https://www.python.org/) 2 (for Python 3, see the
+[python3 branch](https://github.com/dreamworksanimation/usdmanager/tree/python3)),
+[Qt.py](https://github.com/mottosso/Qt.py) and [setuptools](https://github.com/pypa/setuptools)
+(can be handled by setup.py), and one of Qt.py's four supported Qt bindings, which will need to be installed separately.
+
+Additionally, an installation of [USD](https://graphics.pixar.com/usd) itself is recommended but not required for all use cases.
+Installing USD provides access to file path resolvers, non-ASCII USD formats, and plug-ins like usdview.
+All USD versions should be supported.
 
 Install with setup.py
 ---------------------
@@ -58,7 +64,7 @@ For a personal install, try:
 python setup.py install --user
 ```
 
-Studios with significant python codebases or non-trivial installs may need to customize setup.py
+Studios with significant python codebases or non-trivial installs may need to customize [setup.py](setup.py).
 
 Your PATH and PYTHONPATH will need to be set appropriately to launch usdmanager,
 and this will depend on your setup.py install settings.

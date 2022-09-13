@@ -19,10 +19,12 @@ File parsers
 
 import logging
 import re
+import traceback
 from collections import defaultdict
 from xml.sax.saxutils import escape, unescape
 
-from Qt.QtCore import QFile, QFileInfo, QObject, Signal, Slot
+from Qt.QtCore import QFile, QFileInfo, QIODevice, QObject, QTextStream, Signal, Slot
+from Qt.QtGui import QIcon
 
 from .constants import LINE_CHAR_LIMIT, CHAR_LIMIT, FILE_FORMAT_NONE, HTML_BODY
 from .utils import expandPath
@@ -41,6 +43,23 @@ class PathCacheDict(defaultdict):
         return self[key]
 
 
+class SaveFileError(Exception):
+    """ Exception when saving files, where details can be used to provide the earlier traceback for the user in the
+    error dialog's details section.
+    """
+    def __init__(self, message, details=None):
+        """ Initialize the exception.
+        
+        :Parameters:
+            message : `str`
+                Message
+            details : `str` | None
+                Optional traceback to accompany this message.
+        """
+        super(SaveFileError, self).__init__(message)
+        self.details = details
+
+
 class FileParser(QObject):
     """ Base class for RegEx-based file parsing.
     """
@@ -50,6 +69,13 @@ class FileParser(QObject):
     # Override as needed.
     fileFormat = FILE_FORMAT_NONE
     lineCharLimit = LINE_CHAR_LIMIT
+
+    # If the file format is binary or not (e.g. USD's crate format).
+    binary = False
+
+    # Optional icon to display in the tab bar when this file parser is used.
+    icon = QIcon()
+
     # Group within the RegEx corresponding to the file path only.
     # Useful if you modify compile() but not linkParse().
     RE_FILE_GROUP = 1
@@ -69,7 +95,7 @@ class FileParser(QObject):
     
         self.regex = None
         self._stop = False
-        self._cleanup()
+        self.cleanup()
         
         self.progress.connect(parent.setLoadingProgress)
         self.status.connect(parent.loadingProgressLabel.setText)
@@ -94,7 +120,7 @@ class FileParser(QObject):
         """
         raise NotImplementedError
     
-    def _cleanup(self):
+    def cleanup(self):
         """ Reset variables for a new file.
         
         Don't override.
@@ -123,7 +149,23 @@ class FileParser(QObject):
             r')'                              # end group 1
             r'(?:[\'"@]|\\\")'  # 1 of: single quote, double quote, backslash followed by double quote, or at symbol.
         )
-    
+
+    @staticmethod
+    def generateTempFile(fileName, tmpDir=None):
+        """ For file formats supporting ASCII and binary representations, generate a temporary ASCII file that the user can edit.
+        
+        :Parameters:
+            fileName : `str`
+                Binary file path
+            tmpDir : `str` | None
+                Temp directory to create the new file within
+        :Returns:
+            Temporary file name
+        :Rtype:
+            `str`
+        """
+        raise NotImplementedError
+
     def parse(self, nativeAbsPath, fileInfo, link):
         """ Parse a file for links, generating a plain text version and HTML version of the file text.
         
@@ -138,7 +180,7 @@ class FileParser(QObject):
             link : `QUrl`
                 Full file path URL
         """
-        self._cleanup()
+        self.cleanup()
         
         self.status.emit("Reading file")
         self.text = self.read(nativeAbsPath)
@@ -323,6 +365,35 @@ class FileParser(QObject):
         """
         self.stop()
 
+    def write(self, qFile, filePath, tab, tmpDir):
+        """ Write out a plain text file.
+
+        :Parameters:
+            qFile : `QtCore.QFile`
+                Object representing the file to write to
+            filePath : `str`
+                File path to write to
+            tab : `str`
+                Tab being written
+            tmpDir : `str`
+                Temporary directory, if needed for any write operations.
+        :Raises SaveFileError:
+            If the file write fails.
+        """
+        if not qFile.open(QIODevice.WriteOnly | QIODevice.Text):
+            raise SaveFileError("The file could not be opened for saving!")
+
+        try:
+            out = QTextStream(qFile)
+            _ = out << tab.textEditor.toPlainText()
+        except Exception:
+            raise SaveFileError("The file could not be saved.", traceback.format_exc())
+        finally:
+            qFile.close()
+
+        tab.parser = self
+        tab.fileFormat = self.fileFormat
+
 
 class AbstractExtParser(FileParser):
     """ Determines which files are supported based on extension.
@@ -330,7 +401,7 @@ class AbstractExtParser(FileParser):
     """
     # Tuple of `str` file extensions (without the leading .) that this parser can support. Example: ("usda",)
     exts = ()
-    
+
     def acceptsFile(self, fileInfo, link):
         """ Accept files with the proper extension.
         

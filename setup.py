@@ -67,6 +67,7 @@ setup(
     data_files=[("usdmanager", ["usdmanager/usdviewstyle.qss"])],
     scripts=glob("scripts/*"),
     install_requires=[
+        "crystal_small",  # Default icons
         "Qt.py>=1.1",
         "setuptools",  # For pkg_resources
     ],

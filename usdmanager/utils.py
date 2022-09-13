@@ -28,8 +28,9 @@ from contextlib import contextmanager
 from glob import glob
 from pkg_resources import resource_filename
 
-import Qt
-from Qt import QtCore, QtWidgets
+from Qt import QtCore
+from Qt.QtGui import QIcon
+from Qt.QtWidgets import QApplication
 
 from .constants import USD_EXTS, USD_AMBIGUOUS_EXTS, USD_ASCII_EXTS, USD_CRATE_EXTS
 
@@ -44,6 +45,55 @@ try:
 except ImportError:
     logger.warn("Unable to create AssetResolver - Asset links may not work correctly")
     resolver = None
+
+# This can be updated based on the config.json.
+ICON_ALIASES = {
+    "crystal_project": {
+        "accessories-text-editor": "edit",
+        "application-exit": "exit",
+        "applications-internet": "Globe",
+        "comment-add": "comment",
+        "comment-remove": "removecomment",
+        "dialog-information": "info",
+        "document-open": "fileopen",
+        "document-open-recent": "history",
+        "document-print": "printer",
+        "document-save": "filesave",
+        "document-save-as": "filesaveas",
+        "edit-copy": "editcopy",
+        "edit-cut": "editcut",
+        "edit-find": "find",
+        "edit-find-next": ":/images/images/findNext.png",
+        "edit-find-previous": ":/images/images/findPrev.png",
+        "edit-paste": "editpaste",
+        "edit-redo": "redo",
+        "edit-select-all": "ark_selectall",
+        "edit-undo": "undo",
+        "file-diff": "kompare",
+        "folder-home": "folder_home",
+        "folder-up": "up",
+        "format-indent-less": "format_decreaseindent",
+        "format-indent-more": "format_increaseindent",
+        "go-jump": "goto",
+        "go-next": "next",
+        "go-previous": "previous",
+        "help-about": "14_star",
+        "help-browser": "help",
+        "media-playback-start": "1rightarrow",
+        "preferences-system": "configure",
+        "process-stop": "stop",
+        "tab-new": "tab_new",
+        "tab-remove": "tab_remove",
+        "utilities-terminal": "terminal",
+        "view-fullscreen": "window_fullscreen",
+        "view-refresh": "reload",
+        "window-close": "fileclose",
+        "window-new": "new_window",
+        "zoom-in": "viewmag+",
+        "zoom-original": "viewmag1",
+        "zoom-out": "viewmag-",
+    }
+}
 
 
 def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
@@ -134,7 +184,7 @@ def expandUrl(path, parentPath=None):
 
 def strToUrl(path):
     """ Properly set the query parameter of a URL, which doesn't seem to set QUrl.hasQuery properly unless using
-    .setQuery (or .setQueryItems in Qt5).
+    .setQuery.
     
     Use this when a path might have a query string after it or start with file://. In all other cases.
     QUrl.fromLocalFile should work fine.
@@ -158,10 +208,7 @@ def strToUrl(path):
         url = QtCore.QUrl.fromLocalFile(path)
     
     if query:
-        if Qt.IsPySide2 or Qt.IsPyQt5:
-            url.setQuery(query)
-        else:
-            url.setQueryItems([x.split("=", 1) for x in query.split("&")])
+        url.setQuery(query)
     return url
 
 
@@ -268,6 +315,32 @@ def mkstemp(dir, **kwargs):
         else:
             raise
     return fd, tmpFileName
+
+
+def icon(name, fallback=None):
+    """ Get an icon, using theme-based configs to look up icon name aliases.
+
+    :Parameters:
+        name : `str`
+            Icon name or resource path
+        fallback : `QIcon` | None
+            Fallback icon if an icon for name (or it's alias) is not found.
+    :Returns:
+        Icon
+    :Rtype:
+        `QIcon`
+    """
+    try:
+        alias = ICON_ALIASES[QIcon.themeName()][name]
+    except KeyError:
+        return QIcon.fromTheme(name) if fallback is None else QIcon.fromTheme(name, fallback)
+    else:
+        # Assume we passed in a resource path instead of a theme icon.
+        if alias.startswith(":"):
+            return QIcon(alias)
+        if fallback is None:
+            return QIcon.fromTheme(alias, QIcon.fromTheme(name))
+        return QIcon.fromTheme(alias, QIcon.fromTheme(name, fallback))
 
 
 def usdcat(inputFile, outputFile, format=None):
@@ -531,11 +604,11 @@ def overrideCursor(cursor=QtCore.Qt.WaitCursor):
         with overrideCursor():
             # do something that may raise an error
     """    
-    QtWidgets.QApplication.setOverrideCursor(cursor)
+    QApplication.setOverrideCursor(cursor)
     try:
         yield
     finally:
-        QtWidgets.QApplication.restoreOverrideCursor()
+        QApplication.restoreOverrideCursor()
 
 
 def queryItemValue(url, key, default=None):

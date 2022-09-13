@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Lua syntax highlighter
+"""
 from Qt import QtCore, QtGui
 
 from ..highlighter import MasterHighlighter
@@ -24,7 +27,7 @@ class MasterLuaHighlighter(MasterHighlighter):
     extensions = ["lua"]
     comment = "--"
     multilineComment = ("--[[", "]]")
-    
+
     def getRules(self):
         return [
             [   # Symbols
