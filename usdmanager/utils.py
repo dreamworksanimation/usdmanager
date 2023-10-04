@@ -723,6 +723,7 @@ def usdRegEx(exts):
             r'[^\t\n\r\f\v\'"]*?'         # 0 or more (greedy) non-whitespace characters (regular spaces are ok) and no quotes followed by a period, then 1 of the acceptable file extensions. NOTE: Backslash exclusion removed for Windows support; make sure this doesn't negatively affect other systems.
             r'\.(?:'+'|'.join(exts)+r')'  # followed by a period, then 1 of the acceptable file extensions
             r'|\${[\w/${}:.-]+}'          # One or more of these characters -- A-Za-z0-9_-/${}:. -- inside the variable curly brackets -- ${}
+            r'|[a-z]+[:]/[^\'"@]+'       # An Asset URI/IRI
         r')'                              # end group 1
         r'(?:\[(.*?)\])?'                 # Optional layer reference for a usdz file as group 2. TODO: Figure out how to only match this if the extension matched was .usdz (e.g. foo.usdz[path/to/file/within/package.usd])
         r'(?::SDF_FORMAT_ARGS:(.*?))?'    # Optional :SDF_FORMAT_ARGS:key=value&foo=bar, with the query string parameters as group 3
