@@ -192,10 +192,10 @@ class PlainTextLineNumbers(QWidget):
         block = textWidget.firstVisibleBlock()
         blockNumber = block.blockNumber() + 1
         geo = textWidget.blockBoundingGeometry(block).translated(textWidget.contentOffset())
-        top = round(geo.top())
-        bottom = round(geo.bottom())
+        top = int(round(geo.top()))
+        bottom = int(round(geo.bottom()))
         width = self.width() - 3  # 3 is magic padding number
-        height = round(geo.height())
+        height = int(round(geo.height()))
         flags = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
         font = painter.font()
 
@@ -214,7 +214,7 @@ class PlainTextLineNumbers(QWidget):
 
             block = block.next()
             top = bottom
-            bottom = top + round(textWidget.blockBoundingRect(block).height())
+            bottom = top + int(round(textWidget.blockBoundingRect(block).height()))
             blockNumber += 1
 
     def setVisible(self, visible):
