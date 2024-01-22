@@ -130,7 +130,8 @@ def expandPath(path, parentPath=None, sdf_format_args=None, extractedDir=None):
                 if parentPath is None:
                     anchoredPath = path
                 elif hasattr(resolver, "CreateIdentifier"):
-                    anchoredPath = resolver.CreateIdentifier(path)
+                    anchor = resolver.Resolve(parentPath)
+                    anchoredPath = resolver.CreateIdentifier(path, anchor)
                 else:
                     anchoredPath = resolver.AnchorRelativePath(parentPath, path)
                 resolved = resolver.Resolve(anchoredPath)
