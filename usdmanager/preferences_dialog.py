@@ -17,6 +17,7 @@
 """ Create a Preferences dialog.
 """
 
+import Qt
 from Qt.QtCore import Slot, QRegExp
 from Qt.QtGui import QRegExpValidator
 from Qt.QtWidgets import QAbstractButton, QDialog, QDialogButtonBox, QFontDialog, QLineEdit, QMessageBox, QVBoxLayout
@@ -376,7 +377,11 @@ class PreferencesDialog(QDialog):
     def selectFont(self, *args):
         """ Update the user's font preference.
         """
-        font, ok = QFontDialog.getFont(self.docFont, self, "Select Font")
+        result = QFontDialog.getFont(self.docFont, self, "Select Font")
+        if Qt.IsPyQt4 or Qt.IsPyQt5:
+            font, ok = result
+        else:
+            ok, font = result
         if ok:
             self.docFont = font
             self.updateFontLabel()

@@ -3862,9 +3862,9 @@ class TabBar(QtWidgets.QTabBar):
         drag = QtGui.QDrag(self)
         drag.setPixmap(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp).pixmap(12, 12))
         mimeData = QtCore.QMimeData()
-        mimeData.setData("action", "moveTab")
+        mimeData.setData("action", QtCore.QByteArray(b"moveTab"))
         # Set the source window index so we know which window the drag/drop came from.
-        mimeData.setData("window", str(self.currentWindowIndex()))
+        mimeData.setData("window", QtCore.QByteArray(str(self.currentWindowIndex()).encode('utf-8')))
         drag.setMimeData(mimeData)
         drag.exec_()
 
@@ -3877,7 +3877,7 @@ class TabBar(QtWidgets.QTabBar):
         """
         mime = e.mimeData()
         formats = mime.formats()
-        if "action" in formats and "window" in formats and mime.data("action") == "moveTab":
+        if "action" in formats and "window" in formats and mime.data("action") == b"moveTab":
             e.acceptProposedAction()
 
     def currentWindowIndex(self):
