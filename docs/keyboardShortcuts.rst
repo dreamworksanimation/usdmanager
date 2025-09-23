@@ -104,6 +104,8 @@ For ease of use, there are some extra shortcuts not shown in the menus themselve
      - Ctrl+Tab
    * - Previous Tab
      - Ctrl+Shift+Tab
+   * - Raw View
+     - Ctrl+Shift+V
    * - Reload
      - F5
    * - Indent (if text is selected)

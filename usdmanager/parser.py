@@ -182,7 +182,10 @@ class FileParser(QObject):
         """
         self.cleanup()
         
-        self.status.emit("Reading file")
+        if self._stop:
+            return self.parseRawMode(nativeAbsPath)
+        
+        self.status.emit("Reading file (Normal Mode)")
         self.text = self.read(nativeAbsPath)
         
         # TODO: Figure out a better way to handle streaming text for large files like Crate geometry.
@@ -269,6 +272,26 @@ class FileParser(QObject):
             `str`
         """
         return HTML_BODY.format(text)
+    
+    def parseRawMode(self, nativeAbsPath):
+        """ Fast parsing for Raw View mode - bypasses link parsing and minimal HTML generation.
+        
+        :Parameters:
+            nativeAbsPath : `str`
+                OS-native absolute file path
+        """
+        self.status.emit("Reading file (Raw View Mode)")
+        self.text = self.read(nativeAbsPath)
+        
+        length = len(self.text)
+        if length > self.parent().preferences.get('lineLimit', 1000000):
+            limit = self.parent().preferences['lineLimit']
+            self.truncated = True
+            self.text = self.text[:limit]
+            self.warning = "Extremely large file! Capping display at {:,d} lines. You can edit this cap in the "\
+                          "Advanced tab of Preferences.".format(limit)
+        
+        self.parent().loadingProgressBar.setMaximum(length)
     
     def parseMatch(self, match, linkPath, nativeAbsPath, fileInfo):
         """ Parse a RegEx match of a patch to another file.

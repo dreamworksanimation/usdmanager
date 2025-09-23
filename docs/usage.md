@@ -16,6 +16,7 @@ usdmanager shot.usd
 
 - [Browse Mode](#browse-mode)
   * [Browsing Standard Features](#browsing-standard-features)
+  * [Raw View Mode](#raw-view-mode)
 - [Edit Mode](#edit-mode)
   * [Editing Standard Features](#editing-standard-features)
 - [USD Crate](#usd-crate)
@@ -47,6 +48,12 @@ Binary USD Crate files are highlighted in purple instead of blue.
 The browser boasts many standard features, including tabbed browsing with rearrangeable tabs, a navigational history
 per tab, a recent files list (File > Open Recent), and the ability to restore closed Tabs (History > Recently Closed
 Tabs).
+
+### Raw View Mode
+For improved performance with large files, you can enable Raw View mode by clicking the "Raw View" button or using 
+Ctrl+Shift+V. Raw View disables syntax highlighting and link parsing, making file loading and scrolling significantly 
+faster. To exit Raw View, click "Disable Raw View" or use Ctrl+Shift+V again. You can set Raw View as the default for 
+new tabs in the Advanced preferences.
 
 ## Edit Mode
 

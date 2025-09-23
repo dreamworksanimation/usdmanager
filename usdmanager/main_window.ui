@@ -589,6 +589,7 @@
    <addaction name="separator"/>
    <addaction name="actionBrowse"/>
    <addaction name="actionEdit"/>
+   <addaction name="actionRawView"/>
   </widget>
   <widget class="QToolBar" name="navToolbar">
    <property name="windowTitle">
@@ -1031,6 +1032,22 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
+   </property>
+  </action>
+  <action name="actionRawView">
+   <property name="icon">
+    <iconset theme="accessories-text-editor">
+     <normaloff/>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Raw View</string>
+   </property>
+   <property name="statusTip">
+    <string>Switch to raw view mode (no link parsing or syntax highlighting)</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+V</string>
    </property>
   </action>
   <action name="actionPreferences_SyntaxHighlighting">

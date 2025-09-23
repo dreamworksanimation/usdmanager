@@ -430,6 +430,16 @@
         </widget>
        </item>
        <item>
+        <widget class="QCheckBox" name="checkBox_rawViewDefault">
+         <property name="toolTip">
+          <string>Start new tabs in Raw View mode by default for better performance with large files</string>
+         </property>
+         <property name="text">
+          <string>Default to Raw View mode</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <layout class="QFormLayout" name="formLayout_2">
          <item row="0" column="0">
           <widget class="QLabel" name="labelLineLimit">
@@ -524,6 +534,7 @@
   <tabstop>checkBox_teletypeConversion</tabstop>
   <tabstop>checkBox_syntaxHighlighting</tabstop>
   <tabstop>checkBox_parseLinks</tabstop>
+  <tabstop>checkBox_rawViewDefault</tabstop>
   <tabstop>lineLimitSpinBox</tabstop>
   <tabstop>buttonBox</tabstop>
  </tabstops>

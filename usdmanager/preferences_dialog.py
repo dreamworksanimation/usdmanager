@@ -60,6 +60,7 @@ class PreferencesDialog(QDialog):
         self.checkBox_parseLinks.setChecked(parent.preferences['parseLinks'])
         self.checkBox_newTab.setChecked(parent.preferences['newTab'])
         self.checkBox_syntaxHighlighting.setChecked(parent.preferences['syntaxHighlighting'])
+        self.checkBox_rawViewDefault.setChecked(parent.preferences['rawViewDefault'])
         self.checkBox_teletypeConversion.setChecked(parent.preferences['teletype'])
         self.checkBox_lineNumbers.setChecked(parent.preferences['lineNumbers'])
         self.checkBox_showAllMessages.setChecked(parent.preferences['showAllMessages'])
@@ -211,6 +212,16 @@ class PreferencesDialog(QDialog):
             `bool`
         """
         return self.checkBox_syntaxHighlighting.isChecked()
+
+    def getPrefRawViewDefault(self):
+        """ Get the user preference for Raw View mode as default.
+
+        :Returns:
+            State of "Default to Raw View mode" check box.
+        :Rtype:
+            `bool`
+        """
+        return self.checkBox_rawViewDefault.isChecked()
 
     def getPrefTeletypeConversion(self):
         """ Get the user preference to enable teletype character conversion.
