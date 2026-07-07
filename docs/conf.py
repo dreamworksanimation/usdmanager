@@ -38,6 +38,7 @@ extensions = [
 ]
 
 autodoc_mock_imports = [
+    'PyQt5',
     'Qt',
 ]
 

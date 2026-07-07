@@ -1,13 +1,16 @@
 # Development / Customization
 
-Most customization of the app is through the [usdmanager/config.json](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/config.json) file.
+Most customization of the app is through the [usdmanager/config.json](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/config.json) file.
 
 ## Contents
 
-- [File extensions](#file-extensions)
-- [Syntax highlighting](#syntax-highlighting)
-- [Plug-ins](#plug-ins)
-- [Icons](#icons)
+- [Development / Customization](#development--customization)
+  - [Contents](#contents)
+  - [File extensions](#file-extensions)
+  - [Language-specific parsing](#language-specific-parsing)
+  - [Syntax highlighting](#syntax-highlighting)
+  - [Plug-ins](#plug-ins)
+  - [Icons](#icons)
 
 ## File extensions
 
@@ -19,7 +22,7 @@ The dictionary keys are file extensions (without the starting period). The value
 files of this type will be opened in this app, or a string to a command to run with the file path appended. USD file
 types are already included, so you don't need to redefine these.
 
-Additional default app settings can be optionally overridden via the [app config file](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/config.json).
+Additional default app settings can be optionally overridden via the [app config file](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/config.json).
 Supported keys include:
 - **appURL _(str)_** - Documentation URL. Defaults to the public GitHub repository.
 - **defaultPrograms _({str: str})_** - File extension keys with the command to open the file type as the values.
@@ -57,26 +60,26 @@ Example app config JSON file:
 ## Language-specific parsing
 
 When default path parsing logic is not good enough, you can add unique parsing for file types by subclassing the
-[parser.AbstractExtParser](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/parser.py).
+[parser.AbstractExtParser](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/parser.py).
 Save your new class in a file in the parsers directory. Set the class's extensions tuple (e.g. (".html", ".xml")) for a
 simple list of file extensions to match, or override the acceptsFile method for more advanced control.
 
 Within each parser, you can define custom menu items that will be added to the bottom of the Commands menu whenever a
-parser is active. For example, the [USD parser](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/parsers/usd.py)
+parser is active. For example, the [USD parser](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/parsers/usd.py)
 adds an "Open in usdview..." action.
 
 ## Syntax highlighting
 
 To add syntax highlighting for additional languages, subclass the
-[highlighter.MasterHighlighter](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/highlighter.py) class and save your new class in a file in the highlighters
+[highlighter.MasterHighlighter](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/highlighter.py) class and save your new class in a file in the highlighters
 directory. Set the class's extensions list variable to the languages this highlighter supports (e.g.
-[".html", ".xml"]). Already supported languages include [USD](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/highlighters/usd.py),
-[Lua](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/highlighters/lua.py), [Python](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/highlighters/python.py), and some basic
-[HTML/XML](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/highlighters/xml.py).
+[".html", ".xml"]). Already supported languages include [USD](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/highlighters/usd.py),
+[Lua](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/highlighters/lua.py), [Python](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/highlighters/python.py), and some basic
+[HTML/XML](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/highlighters/xml.py).
 
 ## Plug-ins
 
-Plug-ins can be added via the plugins directory. Create a new module in the [plugins](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/plugins) directory
+Plug-ins can be added via the plugins directory. Create a new module in the [plugins](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/plugins) directory
 (e.g. my_plugin.py) and define a class that inherits from the Plugin class. This allows you to add your own menu items,
 customize the UI, etc.
 
@@ -131,8 +134,8 @@ is installed via pip (already part of the default setup) or install them to a di
 of the directories listed by `Qt.QtGui.QIcon.themeSearchPaths()` (e.g. /usr/share/icons/crystal_project).
 
 Additional icons for custom plug-ins can be placed in the plugins directory and then added to the
-[usdmanager/plugins/images.qrc](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/plugins/images.qrc) file. After adding a file to images.rc, run the
-following to update [usdmanager/plugins/images_rc.py](https://github.com/dreamworksanimation/usdmanager/blob/master/usdmanager/plugins/images_rc.py):
+[usdmanager/plugins/images.qrc](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/plugins/images.qrc) file. After adding a file to images.rc, run the
+following to update [usdmanager/plugins/images_rc.py](https://github.com/dreamworksanimation/usdmanager/blob/main/usdmanager/plugins/images_rc.py):
 
 ```
 pyrcc4 usdmanager/plugins/images.rc > usdmanager/plugins/images_rc.py

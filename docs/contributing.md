@@ -4,14 +4,17 @@ This document details the contributing requirements and coding practices that ar
 
 ## Contents
 
-- [The Contributor License Agreement](#the-contributor-license-agreement)
-- [Code Signing](#code-signing)
-- [Pull Requests](#pull-requests)
-- [Process](#process)
-- [Style Guide](#style-guide)
-  * [Naming Conventions](#naming-conventions)
-  * [Formatting](#formatting)
-  * [General](#general)
+- [Contributing](#contributing)
+  - [Contents](#contents)
+  - [The Contributor License Agreement](#the-contributor-license-agreement)
+  - [Code Signing](#code-signing)
+  - [Pull Requests](#pull-requests)
+  - [Process](#process)
+  - [Style Guide](#style-guide)
+    - [Naming Conventions](#naming-conventions)
+    - [Formatting](#formatting)
+    - [General](#general)
+
 
 ## The Contributor License Agreement
 
@@ -28,7 +31,7 @@ information on this requirement.
 
 ## Pull Requests
 
-Pull requests should be rebased on the latest dev commit and squashed to as few logical commits as possible, preferably
+Pull requests should be rebased on the latest main commit and squashed to as few logical commits as possible, preferably
 one. Each commit should pass tests without requiring further commits.
 
 ## Process
@@ -47,9 +50,9 @@ pip install -r docs/requirements.txt
 ```
 sphinx-build -b html docs/ docs/_build
 ```
-6. Commit changes to the dev branch, signing off on them per the "[code signing](#code-signing)" instructions, then
+8. Commit changes to your branch, signing off on them per the "[code signing](#code-signing)" instructions, then
 push the changes to your fork on GitHub
-7. Make a pull request targeting the dev branch
+9.  Make a pull request targeting the main branch
 
 ## Style Guide
 

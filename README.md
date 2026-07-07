@@ -28,12 +28,13 @@ a free, open-source, and detailed software license developed and maintained by t
 Contents
 ========
 
+- [Contents](#contents)
 - [Installing USD Manager](#installing-usd-manager)
-  * [Requirements](#requirements)
-  * [Install with setup.py](#install-with-setuppy)
+  - [Requirements](#requirements)
+  - [Install with setup.py](#install-with-setuppy)
 - [Using USD Manager](#using-usd-manager)
-  * [Keyboard shortcuts](#keyboard-shortcuts)
-- [Development / Customization](#development---customization)
+  - [Keyboard shortcuts](#keyboard-shortcuts)
+- [Development / Customization](#development--customization)
 - [Contributing](#contributing)
 
 Installing USD Manager
@@ -127,9 +128,9 @@ pip install -r docs/requirements.txt
 ```
 sphinx-build -b html docs/ docs/_build
 ```
-8. Commit changes to the dev branch, signing off on them per the code signing instructions, then
+8. Commit changes to your branch, signing off on them per the code signing instructions, then
 push the changes to your fork on GitHub
-9. Make a pull request targeting the dev branch
+9. Make a pull request targeting the main branch
 
-Pull requests should be rebased on the latest dev commit and squashed to as few logical commits as possible, preferably
+Pull requests should be rebased on the latest main commit and squashed to as few logical commits as possible, preferably
 one. Each commit should pass tests without requiring further commits.
