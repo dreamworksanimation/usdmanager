@@ -20,11 +20,10 @@ Constant values
 # Expandable with custom file formats.
 # First in each tuple is preferred extension for that format (e.g. in Save dialog).
 USD_AMBIGUOUS_EXTS = ("usd",)  # Can be ASCII or crate.
-USD_ASCII_EXTS = ("usda",)  # Can ONLY be ASCII.
-USD_CRATE_EXTS = ("usdc",)  # Can ONLY be Crate.
+USD_ASCII_EXTS = ("usda", "usdat")  # Can ONLY be ASCII.
+USD_CRATE_EXTS = ("usdc", "usdct")  # Can ONLY be Crate.
 USD_ZIP_EXTS = ("usdz",)
 USD_EXTS = USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS + USD_CRATE_EXTS + USD_ZIP_EXTS
-
 
 # File filters for the File > Open... and File > Save As... dialogs.
 FILE_FILTER = (
@@ -32,6 +31,7 @@ FILE_FILTER = (
     "USD - ASCII (*.{})".format(" *.".join(USD_AMBIGUOUS_EXTS + USD_ASCII_EXTS)),
     "USD - Crate (*.{})".format(" *.".join(USD_AMBIGUOUS_EXTS + USD_CRATE_EXTS)),
     "USD - Zip (*.{})".format(" *.".join(USD_ZIP_EXTS)),
+    "RDL Files (*.rdla *.rdlb)",  # MoonRay's Render Data Layer.
     "Text Files (*.html *.json *.log *.py *.txt *.xml *.yaml *.yml)",
     "All Files (*)"
 )
@@ -42,8 +42,9 @@ FILE_FORMAT_USD = 0  # Generic USD file (usda or usdc)
 FILE_FORMAT_USDA = 1  # ASCII USD file
 FILE_FORMAT_USDC = 2  # Binary USD crate file
 FILE_FORMAT_USDZ = 3  # Zip-compressed USD package
-FILE_FORMAT_TXT = 4  # Plain text file
-FILE_FORMAT_NONE = 5  # Generic file, presumably plain text
+FILE_FORMAT_RDL = 4  # MoonRay's Render Data Layer (RDL) file
+FILE_FORMAT_TXT = 5  # Plain text file
+FILE_FORMAT_NONE = 6  # Generic file, presumably plain text
 
 # Default template for display files with links.
 # When dark theme is enabled, this is overridden in __init__.py.
