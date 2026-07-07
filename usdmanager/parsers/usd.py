@@ -1,5 +1,5 @@
 #
-# Copyright 2020 DreamWorks Animation L.L.C.
+# Copyright 2020-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 """
 USD file parsers
 """
+from __future__ import absolute_import
 import logging
 import os
 from os.path import sep, splitext
@@ -313,16 +314,15 @@ class UsdParser(UsdAsciiParser):
             self.icon = UsdAsciiParser.icon
 
     def read(self, path):
-        with open(path) as f:
+        with open(path, mode="rb") as f:
             # Read in the first line. If it's a binary USD file,
             # convert it to a temp ASCII file for viewing/editing.
-            if f.readline().startswith("PXR-USDC"):
+            if f.readline().startswith(b"PXR-USDC"):
                 self.setBinary(True)
                 return self.parent().readBinaryFile(path, UsdCrateParser)
 
-            self.setBinary(False)
-            # Read in the full file.
-            f.seek(0)
+        self.setBinary(False)
+        with open(path) as f:
             return f.readlines()
 
     def write(self, *args, **kwargs):

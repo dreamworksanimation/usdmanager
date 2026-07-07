@@ -1,5 +1,5 @@
 #
-# Copyright 2018 DreamWorks Animation L.L.C.
+# Copyright 2018-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 """
 Generic utility functions
 """
+from __future__ import absolute_import, division
 import importlib
 import logging
 import os

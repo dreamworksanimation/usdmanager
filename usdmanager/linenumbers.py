@@ -1,5 +1,5 @@
 #
-# Copyright 2018 DreamWorks Animation L.L.C.
+# Copyright 2018-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 Line numbers widget for optimized display of line numbers on the left side of
 a text widget.
 """
-from __future__ import division
+from __future__ import absolute_import, division
 
 from Qt import QtCore
 from Qt.QtCore import QRect, QSize, Slot
@@ -212,7 +212,7 @@ class PlainTextLineNumbers(QWidget):
                 painter.setFont(font)
                 painter.drawText(0, top, width, height, flags, str(blockNumber))
 
-            block = block.next()
+            block = block.next() # pylint: disable=next-method-called
             top = bottom
             bottom = top + round(textWidget.blockBoundingRect(block).height())
             blockNumber += 1
@@ -320,7 +320,7 @@ class LineNumbers(PlainTextLineNumbers):
             # Make the line number for the selected line bold.
             font.setBold(block == currBlock)
             painter.setFont(font)
-            painter.drawText(0, yPos - vScrollPos, width, height, flags, str(currLine))
+            painter.drawText(0, int(yPos - vScrollPos), width, height, flags, str(currLine))
 
             # Go to the next block.
-            block = block.next()
+            block = block.next() # pylint: disable=next-method-called

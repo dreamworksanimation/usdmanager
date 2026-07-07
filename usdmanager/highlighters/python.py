@@ -1,5 +1,5 @@
 #
-# Copyright 2018 DreamWorks Animation L.L.C.
+# Copyright 2018-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import absolute_import
 from Qt import QtCore, QtGui
 
 from ..highlighter import createMultilineRule, MasterHighlighter
@@ -28,7 +29,7 @@ class MasterPythonHighlighter(MasterHighlighter):
     def getRules(self):
         return [
             [   # Symbols
-                "[(){}\[\]]",
+                r"[(){}\[\]]",
                 QtCore.Qt.darkMagenta,
                 QtCore.Qt.magenta,
                 QtGui.QFont.Bold
@@ -61,7 +62,7 @@ class MasterPythonHighlighter(MasterHighlighter):
                 QtGui.QColor("#678CB1")
             ],
             [   # Operators
-                '[\-+*/%=!<>&|^~]',
+                r'[\-+*/%=!<>&|^~]',
                 QtGui.QColor("#990000"),
                 QtGui.QColor("#990000")
             ],

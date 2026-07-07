@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2018 DreamWorks Animation L.L.C.
+# Copyright 2018-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -4672,7 +4672,7 @@ class BrowserTab(QtWidgets.QWidget):
                 Automatically copy indentation from above line with return
         """
         font = self.parent().font()
-        width = tabSpaces * QtGui.QFontMetricsF(font).averageCharWidth()
+        width = int(tabSpaces * QtGui.QFontMetricsF(font).averageCharWidth())
         self.textBrowser.setTabStopWidth(width)
         self.textEditor.setTabStopWidth(width)
         self.textEditor.tabSpaces = tabSpaces

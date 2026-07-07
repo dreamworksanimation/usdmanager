@@ -1,5 +1,5 @@
 #
-# Copyright 2018 DreamWorks Animation L.L.C.
+# Copyright 2018-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 """ Create a Preferences dialog.
 """
 
+from __future__ import absolute_import
 from Qt.QtCore import Slot, QRegExp
 from Qt.QtGui import QRegExpValidator
 from Qt.QtWidgets import QAbstractButton, QDialog, QDialogButtonBox, QFontDialog, QLineEdit, QMessageBox, QVBoxLayout

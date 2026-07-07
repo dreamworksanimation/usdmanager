@@ -1,5 +1,5 @@
 #
-# Copyright 2018 DreamWorks Animation L.L.C.
+# Copyright 2018-2023 DreamWorks Animation L.L.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #
 """ Left-hand side file browser.
 """
+from __future__ import absolute_import
 import os
 
 from Qt import QtCore, QtWidgets

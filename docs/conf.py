@@ -12,6 +12,8 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+from __future__ import absolute_import
+
 import os
 from recommonmark.parser import CommonMarkParser
 import sys
@@ -63,7 +65,7 @@ copyright = u'2019, DreamWorks Animation'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-execfile("../usdmanager/version.py")
+exec(compile(open("../usdmanager/version.py", "rb").read(), "../usdmanager/version.py", 'exec'))
 # The short X.Y version.
 version = __version__
 # The full version, including alpha/beta/rc tags.
