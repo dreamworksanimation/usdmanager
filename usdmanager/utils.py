@@ -27,7 +27,23 @@ import subprocess
 import tempfile
 from contextlib import contextmanager
 from glob import glob
-from pkg_resources import resource_filename
+
+try:
+    # importlib.resources.files only exists in Python >= 3.9
+    # once we remove support for Python < 3.9, we can remove this try/except
+    # and just use importlib.resources.files
+    from importlib.resources import files
+except ImportError:
+    # Fallback shim for Python < 3.9
+    # pkg_resources is removed in setuptools 82.0.0
+    try:
+        from pathlib import Path
+    except ImportError:
+        # Python 2.7 requires pathlib2
+        from pathlib2 import Path
+    from pkg_resources import resource_filename
+    def files(package):
+        return Path(resource_filename(package, ""))
 
 from Qt import QtCore
 from Qt.QtGui import QIcon
@@ -44,7 +60,7 @@ try:
     from pxr import Ar
     resolver = Ar.GetResolver()
 except ImportError:
-    logger.warn("Unable to create AssetResolver - Asset links may not work correctly")
+    logger.warning("Unable to create AssetResolver - Asset links may not work correctly")
     resolver = None
 
 # This can be updated based on the config.json.
@@ -240,7 +256,7 @@ def findModules(subdir):
         `list`
     """
     modules = []
-    pluginPath = resource_filename(__name__, subdir)
+    pluginPath = str(files(__name__).joinpath(subdir))
     logger.info("Searching for *.py plugins in %s", pluginPath)
     for f in glob(os.path.join(pluginPath, "*.py")):
         moduleName = os.path.splitext(os.path.basename(f))[0]
@@ -584,7 +600,7 @@ def loadUiWidget(path, parent=None, source_path=None):
     if not os.path.exists(path) and not os.path.isabs(path):
         # Assume the .ui file lives in this directory.
         if source_path is None:
-            path = resource_filename(__name__, path)
+            path = str(files(__name__).joinpath(path))
         else:
             path = os.path.join(os.path.dirname(os.path.realpath(source_path)), path)
     ui = QtCompat.loadUi(path, parent)

@@ -58,7 +58,23 @@ import warnings
 from contextlib import contextmanager
 from functools import partial
 from glob import glob
-from pkg_resources import resource_filename
+
+try:
+    # importlib.resources.files only exists in Python >= 3.9
+    # once we remove support for Python < 3.9, we can remove this try/except
+    # and just use importlib.resources.files
+    from importlib.resources import files
+except ImportError:
+    # Fallback shim for Python < 3.9
+    # pkg_resources is removed in setuptools 82.0.0
+    try:
+        from pathlib import Path
+    except ImportError:
+        # Python 2.7 requires pathlib2
+        from pathlib2 import Path
+    from pkg_resources import resource_filename
+    def files(package):
+        return Path(resource_filename(package, ""))
 
 # To lock down or prefer a specific Qt version:
 #if "QT_PREFERRED_BINDING" not in os.environ:
@@ -322,7 +338,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
             QtGui.QIcon.setThemeName(iconThemeName)
             del iconThemeName
             
-            stylesheet = resource_filename(__name__, "usdviewstyle.qss")
+            stylesheet = str(files(__name__).joinpath("usdviewstyle.qss"))
             with open(stylesheet) as f:
                 # Qt style sheet accepts only forward slashes as path separators.
                 sheetString = f.read().replace('RESOURCE_DIR', os.path.dirname(stylesheet).replace("\\", "/"))
@@ -4824,7 +4840,7 @@ class App(QtCore.QObject):
         self.config = Settings()
 
         # App settings.
-        appConfigPath = resource_filename(__name__, "config.json")
+        appConfigPath = str(files(__name__).joinpath("config.json"))
         try:
             logger.info("Loading app config from %s", appConfigPath)
             with open(appConfigPath) as f:
