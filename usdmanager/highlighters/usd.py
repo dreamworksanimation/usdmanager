@@ -32,9 +32,9 @@ class MasterUSDHighlighter(MasterHighlighter):
             [   # Symbols and booleans
                 # \u2026 is the horizontal ellipsis we insert in the middle of long arrays.
                 r"(?:[>(){}[\]=@" + u"\u2026" + "]|</|true|false)",
-                QtCore.Qt.darkMagenta, # Light theme
+                QtCore.Qt.GlobalColor.darkMagenta, # Light theme
                 QtGui.QColor("#CCC"), # Dark theme
-                QtGui.QFont.Bold
+                QtGui.QFont.Weight.Bold
             ],
             [   # Keyword actions/descriptors
                 # add append prepend del delete custom uniform rel
@@ -68,7 +68,7 @@ class MasterUSDHighlighter(MasterHighlighter):
                 QtGui.QColor("#678CB1"),
                 QtGui.QFont.Bold,
                 False,
-                QtCore.Qt.CaseInsensitive
+                QtCore.QRegularExpression.PatternOption.CaseInsensitiveOption
             ],
             [   # Schemas
                 # TODO: Can this query USD to see what schemas are defined?
@@ -97,4 +97,4 @@ class MasterUSDHighlighter(MasterHighlighter):
         super(MasterUSDHighlighter, self).createRules()
         
         # Support triple quote strings. Doesn't deal with escaped quotes.
-        self.multilineRules.append(createMultilineRule('"""', '"""', QtCore.Qt.darkGreen, QtGui.QColor(25, 255, 25)))
+        self.multilineRules.append(createMultilineRule('"""', '"""', QtCore.Qt.GlobalColor.darkGreen, QtGui.QColor(25, 255, 25)))

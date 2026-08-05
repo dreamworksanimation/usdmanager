@@ -33,9 +33,9 @@ class MasterLuaHighlighter(MasterHighlighter):
         return [
             [   # Symbols
                 r"[(){}[\]",
-                QtCore.Qt.darkMagenta,
-                QtCore.Qt.magenta,
-                QtGui.QFont.Bold
+                QtCore.Qt.GlobalColor.darkMagenta,
+                QtCore.Qt.GlobalColor.magenta,
+                QtGui.QFont.Weight.Bold
             ],
             [
                 # Keywords

@@ -30,9 +30,9 @@ class MasterPythonHighlighter(MasterHighlighter):
         return [
             [   # Symbols
                 r"[(){}\[\]]",
-                QtCore.Qt.darkMagenta,
-                QtCore.Qt.magenta,
-                QtGui.QFont.Bold
+                QtCore.Qt.GlobalColor.darkMagenta,
+                QtCore.Qt.GlobalColor.magenta,
+                QtGui.QFont.Weight.Bold
             ],
             [
                 # Keywords
@@ -77,4 +77,4 @@ class MasterPythonHighlighter(MasterHighlighter):
         super(MasterPythonHighlighter, self).createRules()
         
         # Support single-quote triple quotes in additional the the double quote triple quotes.
-        self.multilineRules.append(createMultilineRule("'''", "'''", QtCore.Qt.gray, italic=True))
+        self.multilineRules.append(createMultilineRule("'''", "'''", QtCore.Qt.GlobalColor.gray, italic=True))

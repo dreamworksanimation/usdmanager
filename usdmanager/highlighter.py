@@ -31,7 +31,59 @@ from .utils import findModules
 DARK_THEME = False
 
 
-def createRule(pattern, color=None, darkColor=None, weight=None, italic=False, cs=QtCore.Qt.CaseSensitive):
+def regex_index_in(regex, text, start_pos=0):
+    """Find regex matches in text.
+    
+    Args:
+        regex: QRegularExpression object.
+        text: Text to search.
+        start_pos: Position to start search from.
+        
+    Returns:
+        int: Position of the match or -1 if not found.
+    """
+    match = regex.match(text, start_pos)
+    return match.capturedStart() if match.hasMatch() else -1
+
+
+def regex_matched_length(regex, text, start_pos=0):
+    """Get the length of a regex match.
+    
+    Args:
+        regex: QRegularExpression object.
+        text: Text to search.
+        start_pos: Position to start search from.
+        
+    Returns:
+        int: Length of the match or 0 if no match.
+    """
+    if start_pos < 0:
+        return 0
+    
+    match = regex.match(text, start_pos)
+    return match.capturedLength() if match.hasMatch() else 0
+
+
+def regex_pos(regex, text, start_pos, group):
+    """Get the position of a capture group.
+    
+    Args:
+        regex: QRegularExpression object.
+        text: Text to search.
+        start_pos: Position to start search from.
+        group: Capture group index.
+
+    Returns:
+        int: Position of the capture group or -1 if not found.
+    """
+    if start_pos < 0:
+        return -1
+    
+    match = regex.match(text, start_pos)
+    return match.capturedStart(group) if match.hasMatch() and group < match.lastCapturedIndex() + 1 else -1
+
+
+def createRule(pattern, color=None, darkColor=None, weight=None, italic=False, cs=QtCore.QRegularExpression.PatternOption.NoPatternOption):
     """ Create a single-line syntax highlighting rule.
     
     :Parameters:
@@ -49,7 +101,7 @@ def createRule(pattern, color=None, darkColor=None, weight=None, italic=False, c
         cs : `int`
             Case sensitivity for RegEx matching
     :Returns:
-        Tuple of `QtCore.QRegExp` and `QtGui.QTextCharFormat` objects.
+        Tuple of compiled regex and `QtGui.QTextCharFormat` objects.
     :Rtype:
         tuple
     """
@@ -62,10 +114,10 @@ def createRule(pattern, color=None, darkColor=None, weight=None, italic=False, c
         frmt.setFontWeight(weight)
     if italic:
         frmt.setFontItalic(True)
-    return QtCore.QRegExp(pattern, cs), frmt
+    return QtCore.QRegularExpression(pattern, cs), frmt
 
 
-def createMultilineRule(startPattern, endPattern, color=None, darkColor=None, weight=None, italic=False, cs=QtCore.Qt.CaseSensitive):
+def createMultilineRule(startPattern, endPattern, color=None, darkColor=None, weight=None, italic=False, cs=QtCore.QRegularExpression.PatternOption.NoPatternOption):
     """ Create a multiline syntax highlighting rule.
     
     :Parameters:
@@ -84,12 +136,12 @@ def createMultilineRule(startPattern, endPattern, color=None, darkColor=None, we
         cs : `int`
             Case sensitivity for RegEx matching
     :Returns:
-        Tuple of `QtCore.QRegExp` and `QtGui.QTextCharFormat` objects.
+        Tuple of compiled regex and `QtGui.QTextCharFormat` objects.
     :Rtype:
         tuple
     """
     start, frmt = createRule(startPattern, color, darkColor, weight, italic, cs)
-    end = QtCore.QRegExp(endPattern, cs)
+    end = QtCore.QRegularExpression(endPattern, cs)
     return start, end, frmt
 
 
@@ -159,19 +211,19 @@ class MasterHighlighter(QtCore.QObject):
         # Numeric literals
         self.ruleNumber = [
             r'\b[+-]?(?:[0-9]+[lL]?|0[xX][0-9A-Fa-f]+[lL]?|[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\b',
-            QtCore.Qt.darkBlue,
-            QtCore.Qt.cyan
+            QtCore.Qt.GlobalColor.darkBlue,
+            QtCore.Qt.GlobalColor.cyan
         ]
         # Double-quoted string, possibly containing escape sequences.
         self.ruleDoubleQuote = [
             r'"[^"\\]*(?:\\.[^"\\]*)*"',
-            QtCore.Qt.darkGreen,
+            QtCore.Qt.GlobalColor.darkGreen,
             QtGui.QColor(25, 255, 25)
         ]
         # Single-quoted string, possibly containing escape sequences.
         self.ruleSingleQuote = [
             r"'[^'\\]*(?:\\.[^'\\]*)*'",
-            QtCore.Qt.darkGreen,
+            QtCore.Qt.GlobalColor.darkGreen,
             QtGui.QColor(25, 255, 25)
         ]
         # Matches a comment from the starting point to the end of the line,
@@ -179,8 +231,8 @@ class MasterHighlighter(QtCore.QObject):
         if self.comment:
             self.ruleComment = [
                 "^(?:[^\"']|\"[^\"]*\"|'[^']*')*(" + re.escape(self.comment) + ".*)$",  # TODO: This should probably be language-specific instead of assumed for all.
-                QtCore.Qt.gray,
-                QtCore.Qt.gray,
+                QtCore.Qt.GlobalColor.gray,
+                QtCore.Qt.GlobalColor.gray,
                 None,  # Not bold
                 True  # Italic
             ]
@@ -201,7 +253,7 @@ class MasterHighlighter(QtCore.QObject):
         return [
             [   # Operators
                 r'[\-+*/%=!<>&|^~]',
-                QtCore.Qt.red,
+                QtCore.Qt.GlobalColor.red,
                 QtGui.QColor("#F33")
             ],
             self.ruleNumber,
@@ -222,7 +274,7 @@ class MasterHighlighter(QtCore.QObject):
                 # TODO: This should probably be language-specific instead of assumed for all.
                 "^(?:[^\"']|\"[^\"]*\"|'[^']*')*(" + re.escape(self.multilineComment[0]) + ")",
                 re.escape(self.multilineComment[1]),
-                QtCore.Qt.gray,
+                QtCore.Qt.GlobalColor.gray,
                 italic=True))
     
     def dirty(self):
@@ -303,17 +355,17 @@ class Highlighter(QtGui.QSyntaxHighlighter):
         previousBlockState = self.previousBlockState
 
         for pattern, frmt in self.master.rules:
-            i = pattern.indexIn(text)
+            i = regex_index_in(pattern, text)
             while i >= 0:
                 # If we have a grouped match, only highlight that first group and not the chars before it.
-                pos1 = pattern.pos(1)
+                pos1 = regex_pos(pattern, text, i, 1)
                 if pos1 != -1:
-                    length = pattern.matchedLength() - (pos1 - i)
+                    length = regex_matched_length(pattern, text, i) - (pos1 - i)
                     i = pos1
                 else:
-                    length = pattern.matchedLength()
+                    length = regex_matched_length(pattern, text, i)
                 setFormat(i, length, frmt)
-                i = pattern.indexIn(text, i + length)
+                i = regex_index_in(pattern, text, i + length)
         
         setCurrentBlockState(0)
         for state, (startExpr, endExpr, frmt) in enumerate(self.master.multilineRules, 1):
@@ -323,21 +375,21 @@ class Highlighter(QtGui.QSyntaxHighlighter):
                 add = 0
             else:
                 # Look for the start of the expression.
-                startIndex = startExpr.indexIn(text)
+                startIndex = regex_index_in(startExpr, text)
                 # If we have a grouped match, only highlight that first group and not the chars before it.
-                pos1 = startExpr.pos(1)
+                pos1 = regex_pos(startExpr, text, startIndex, 1)
                 if pos1 != -1:
-                    add = startExpr.matchedLength() - (pos1 - startIndex)
+                    add = regex_matched_length(startExpr, text, startIndex) - (pos1 - startIndex)
                     startIndex = pos1
                 else:
-                    add = startExpr.matchedLength()
+                    add = regex_matched_length(startExpr, text, startIndex)
             
             # If we're inside the match, look for the end expression.
             while startIndex >= 0:
-                endIndex = endExpr.indexIn(text, startIndex + add)
+                endIndex = regex_index_in(endExpr, text, startIndex + add)
                 if endIndex >= add:
                     # We found the end of the multiline rule.
-                    length = endIndex - startIndex + add + endExpr.matchedLength()
+                    length = endIndex - startIndex + add + regex_matched_length(endExpr, text, endIndex)
                     # Since we're at the end of this rule, reset the state so other multiline rules can try to match.
                     setCurrentBlockState(0)
                 else:
@@ -350,13 +402,13 @@ class Highlighter(QtGui.QSyntaxHighlighter):
                 setFormat(startIndex, length, frmt)
                 
                 # Look for the next match.
-                startIndex = startExpr.indexIn(text, startIndex + length)
-                pos1 = startExpr.pos(1)
+                startIndex = regex_index_in(startExpr, text, startIndex + length)
+                pos1 = regex_pos(startExpr, text, startIndex, 1)
                 if pos1 != -1:
-                    add = startExpr.matchedLength() - (pos1 - startIndex)
+                    add = regex_matched_length(startExpr, text, startIndex) - (pos1 - startIndex)
                     startIndex = pos1
                 else:
-                    add = startExpr.matchedLength()
+                    add = regex_matched_length(startExpr, text, startIndex)
             
             if currentBlockState() == state:
                 break

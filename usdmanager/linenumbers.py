@@ -19,7 +19,7 @@ a text widget.
 """
 from __future__ import absolute_import, division
 
-from Qt import QtCore
+from Qt import QtCore, QtCompat
 from Qt.QtCore import QRect, QSize, Slot
 from Qt.QtGui import QColor, QFont, QPainter, QTextCharFormat, QTextFormat
 from Qt.QtWidgets import QTextEdit, QWidget
@@ -78,8 +78,8 @@ class PlainTextLineNumbers(QWidget):
 
         extras = [x for x in self.textWidget.extraSelections() if x.format.property(QTextFormat.UserProperty) != "line"]
         selection = QTextEdit.ExtraSelection()
-        lineColor = QColor(QtCore.Qt.darkGray).darker() if self.window().isDarkTheme() else \
-                    QColor(QtCore.Qt.yellow).lighter(180)
+        lineColor = QColor(QtCore.Qt.GlobalColor.darkGray).darker() if self.window().isDarkTheme() else \
+                    QColor(QtCore.Qt.GlobalColor.yellow).lighter(180)
         selection.format.setBackground(lineColor)
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
         selection.format.setProperty(QTextFormat.UserProperty, "line")
@@ -90,7 +90,7 @@ class PlainTextLineNumbers(QWidget):
         '''
         if self.window().buttonHighlightAll.isChecked() and self.window().findBar.text():
             selection = QTextEdit.ExtraSelection()
-            lineColor = QColor(QtCore.Qt.yellow)
+            lineColor = QColor(QtCore.Qt.GlobalColor.yellow)
             selection.format.setBackground(lineColor)
             selection.cursor = QtGui.QTextCursor(self.textWidget.document())
             selection.find(self.window().findBar.text())
@@ -122,12 +122,12 @@ class PlainTextLineNumbers(QWidget):
             event : `QMouseEvent`
                 Mouse move event
         """
-        if event.buttons() != QtCore.Qt.LeftButton:
+        if event.buttons() != QtCore.Qt.MouseButton.LeftButton:
             event.accept()
             return
 
         cursor = self.textWidget.textCursor()
-        cursor2 = self.textWidget.cursorForPosition(event.pos())
+        cursor2 = self.textWidget.cursorForPosition(QtCompat.QMouseEvent.position(event).toPoint())
         new = cursor2.position()
         if new == self._movePos:
             event.accept()
@@ -152,15 +152,15 @@ class PlainTextLineNumbers(QWidget):
             event : `QMouseEvent`
                 Mouse press event
         """
-        if event.buttons() != QtCore.Qt.LeftButton:
+        if event.buttons() != QtCore.Qt.MouseButton.LeftButton:
             event.accept()
             return
 
-        cursor = self.textWidget.cursorForPosition(event.pos())
+        cursor = self.textWidget.cursorForPosition(QtCompat.QMouseEvent.position(event).toPoint())
         cursor.select(cursor.LineUnderCursor)
 
         # Allow Shift-selecting lines from the previous selection to new position.
-        if self.textWidget.textCursor().hasSelection() and event.modifiers() == QtCore.Qt.ShiftModifier:
+        if self.textWidget.textCursor().hasSelection() and event.modifiers() == QtCore.Qt.KeyboardModifier.ShiftModifier:
             cursor2 = self.textWidget.textCursor()
             self._movePos = cursor2.position()
             start = min(cursor.selectionStart(), cursor2.selectionStart())
@@ -183,8 +183,8 @@ class PlainTextLineNumbers(QWidget):
         """ Draw the visible line numbers.
         """
         painter = QPainter(self)
-        painter.fillRect(event.rect(), QColor(QtCore.Qt.darkGray).darker(300) if self.window().isDarkTheme() \
-                         else QtCore.Qt.lightGray)
+        painter.fillRect(event.rect(), QColor(QtCore.Qt.GlobalColor.darkGray).darker(300) if self.window().isDarkTheme() \
+                         else QColor(QtCore.Qt.GlobalColor.lightGray))
 
         textWidget = self.textWidget
         currBlock = textWidget.document().findBlock(textWidget.textCursor().position())
@@ -196,7 +196,7 @@ class PlainTextLineNumbers(QWidget):
         bottom = round(geo.bottom())
         width = self.width() - 3  # 3 is magic padding number
         height = round(geo.height())
-        flags = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
+        flags = QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter
         font = painter.font()
 
         # Shrink the line numbers if we zoom out so numbers don't overlap, but don't increase the size, since we don't
@@ -281,8 +281,8 @@ class LineNumbers(PlainTextLineNumbers):
         """ Draw line numbers.
         """
         painter = QPainter(self)
-        painter.fillRect(event.rect(), QColor(QtCore.Qt.darkGray).darker(300) if self.window().isDarkTheme() \
-                         else QtCore.Qt.lightGray)
+        painter.fillRect(event.rect(), QColor(QtCore.Qt.GlobalColor.darkGray).darker(300) if self.window().isDarkTheme() \
+                         else QColor(QtCore.Qt.GlobalColor.lightGray))
 
         textWidget = self.textWidget
         doc = textWidget.document()
@@ -292,7 +292,7 @@ class LineNumbers(PlainTextLineNumbers):
 
         width = self.width() - 3  # 3 is magic padding number
         height = textWidget.fontMetrics().height()
-        flags = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
+        flags = QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter
         font = painter.font()
 
         # Shrink the line numbers if we zoom out so numbers don't overlap, but don't increase the size, since we don't

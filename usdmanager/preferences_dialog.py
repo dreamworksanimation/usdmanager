@@ -18,12 +18,22 @@
 """
 
 from __future__ import absolute_import
-from Qt.QtCore import Slot, QRegExp
-from Qt.QtGui import QRegExpValidator
+
+import importlib
+
+import Qt
+from Qt.QtCore import Slot, QRegularExpression
 from Qt.QtWidgets import QAbstractButton, QDialog, QDialogButtonBox, QFontDialog, QLineEdit, QMessageBox, QVBoxLayout
 
 from .constants import LINE_LIMIT
 from .utils import icon, loadUiWidget
+
+# Qt.py does not expose this validator,
+# as it is not available in earlier PySide2 versions
+# see https://github.com/mottosso/Qt.py/issues/468
+QRegularExpressionValidator = importlib.import_module(
+    "{}.QtGui".format(Qt.__binding__)
+).QRegularExpressionValidator
 
 
 class PreferencesDialog(QDialog):
@@ -80,8 +90,8 @@ class PreferencesDialog(QDialog):
         self.extLayout = QVBoxLayout()
 
         # Extensions can only be: <optional .><alphanumeric><optional comma><optional space>
-        #self.progValidator = QRegExpValidator(QRegExp("[\w,. ]+"), self)
-        self.extValidator = QRegExpValidator(QRegExp(r"(?:\.?\w*,?\s*)+"), self)
+        #self.progValidator = QRegularExpressionValidator(QRegularExpression("[\w,. ]+"), self)
+        self.extValidator = QRegularExpressionValidator(QRegularExpression(r"(?:\.?\w*,?\s*)+"), self)
         self.lineEdit.setValidator(self.extValidator)
 
         # Create the fields for programs and extensions.

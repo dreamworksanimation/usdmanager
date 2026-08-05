@@ -81,7 +81,7 @@ except ImportError:
 #    os.environ["QT_PREFERRED_BINDING"] = os.pathsep.join(["PyQt5", "PySide2", "PyQt4", "PySide"])
 
 import Qt
-from Qt import QtCore, QtGui, QtWidgets
+from Qt import QtCompat, QtCore, QtGui, QtWidgets
 from Qt.QtCore import Signal, Slot
 
 # Qt.py versions before 1.1.0 may not support this.
@@ -125,7 +125,7 @@ if Qt.IsPySide2 or Qt.IsPyQt5:
                 :Rtype:
                     `str`
                 """
-                return self.toString(QtCore.QUrl.PrettyDecoded | QtCore.QUrl.RemoveQuery)
+                return self.toString(QtCore.QUrl.FormattingOption.PrettyDecoded | QtCore.QUrl.FormattingOption.RemoveQuery)
 
             QtCore.QUrl.path = qUrlPath
 
@@ -175,7 +175,7 @@ if Qt.IsPySide2 or Qt.IsPyQt5:
     QtCore.QUrl.setQueryDelimiters = setQueryDelimiters
 elif Qt.IsPySide or Qt.IsPyQt4:
     # Add basic support for QUrl.setQuery to PySide and PyQt4 (added in Qt5).
-    def qUrlSetQuery(self, query, mode=QtCore.QUrl.TolerantMode):
+    def qUrlSetQuery(self, query, mode=QtCore.QUrl.ParsingMode.TolerantMode):
         """
         :Parameters:
             query : `str`
@@ -188,6 +188,29 @@ elif Qt.IsPySide or Qt.IsPyQt4:
         )
 
     QtCore.QUrl.setQuery = qUrlSetQuery
+
+
+def qt_exec(component, *args, **kwargs):
+    """Tries `component.exec()` if available, otherwise `component.exec_()`.
+
+    Qt5 (PySide2) does not support exec() due to reserved Python2 keyword,
+    and PySide6 supports exec() with exec_() available but marked for deprecation.
+    QtCompat 
+    This provides a consistent way to execute all Qt components across versions.
+    See https://github.com/mottosso/Qt.py/issues/467
+
+    Args:
+        component: The Qt component to execute.
+        *args: Positional arguments to pass to the exec method.
+        **kwargs: Keyword arguments to pass to the exec method.
+
+    Returns:
+        The result of exec().
+    
+    """
+    if hasattr(component, "exec"):
+        return component.exec(*args, **kwargs)
+    return component.exec_(*args, **kwargs)
 
 
 class UsdMngrWindow(QtWidgets.QMainWindow):
@@ -316,7 +339,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
         # Update some app defaults that required the GUI to be created first.
         self.setWindowIcon(QtGui.QIcon(":images/images/logo.png"))
         defaultDocFont = QtGui.QFont()
-        defaultDocFont.setStyleHint(QtGui.QFont.Courier)
+        defaultDocFont.setStyleHint(QtGui.QFont.StyleHint.Courier)
         defaultDocFont.setFamily("Monospace")
         defaultDocFont.setPointSize(9)
         defaultDocFont.setBold(False)
@@ -432,7 +455,7 @@ a.binary {{color:#69F}}
         self.actionDiffFile.setIcon(icon("file-diff"))
         self.buttonHighlightAll.setIcon(icon("highlight"))
 
-        self.aboutQtAction.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_TitleBarMenuButton))
+        self.aboutQtAction.setIcon(self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_TitleBarMenuButton))
 
         self.actionBrowse.setVisible(False)
         self.actionSelectAll.setEnabled(True)
@@ -458,7 +481,7 @@ a.binary {{color:#69F}}
         # Status Bar
         self.fileStatusButton = QtWidgets.QPushButton(self.statusbar)
         self.fileStatusButton.setFlat(True)
-        self.fileStatusButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.fileStatusButton.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.fileStatusButton.setIconSize(QtCore.QSize(16, 16))
         self.fileStatusButton.setStyleSheet("QPushButton {background-color: none; border: none; margin:0; padding:0;}")
         self.statusbar.addPermanentWidget(self.fileStatusButton)
@@ -468,16 +491,17 @@ a.binary {{color:#69F}}
         self.buttonTabList.setMenu(self.menuTabList)
 
         self.tabWidget = TabWidget(self)
-        self.tabWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.tabWidget.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.tabWidget.setFont(self.preferences['font'])
-        self.tabWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        expanding_policy = QtWidgets.QSizePolicy.Policy.Expanding
+        self.tabWidget.setSizePolicy(expanding_policy, expanding_policy)
         self.tabWidget.setStyleSheet(
             "QPushButton:hover{border:1px solid #8f8f91; border-radius:3px; background-color:qlineargradient(x1:0, "
             "y1:0, x2:0, y2:1, stop:0 #f6f7fa, stop:1 #dadbde);}"
             "QPushButton:pressed{background-color:qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #dadbde, "
             "stop:1 #f6f7fa);}")
-        self.tabWidget.setCornerWidget(self.buttonNewTab, QtCore.Qt.TopLeftCorner)
-        self.tabWidget.setCornerWidget(self.tabTopRightWidget, QtCore.Qt.TopRightCorner)
+        self.tabWidget.setCornerWidget(self.buttonNewTab, QtCore.Qt.Corner.TopLeftCorner)
+        self.tabWidget.setCornerWidget(self.tabTopRightWidget, QtCore.Qt.Corner.TopRightCorner)
         self.tabLayout = QtWidgets.QHBoxLayout(self.tabWidget)
         self.tabLayout.setContentsMargins(0, 0, 0, 0)
         self.tabLayout.setSpacing(5)
@@ -493,7 +517,7 @@ a.binary {{color:#69F}}
         self.verticalLayout.removeWidget(self.mainWidget)
         self.mainWidget = QtWidgets.QSplitter(self)
         self.mainWidget.setContentsMargins(0, 0, 0, 0)
-        self.mainWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.mainWidget.setSizePolicy(expanding_policy, expanding_policy)
         self.mainWidget.addWidget(self.includeWidget)
         self.mainWidget.addWidget(self.editWidget)
         self.toggleInclude(self.preferences['includeVisible'])
@@ -658,7 +682,7 @@ a.binary {{color:#69F}}
                 menu.addAction(self.actionViewSource)
         actions[0].setIcon(self.actionCopy.icon())
         actions[3].setIcon(self.actionSelectAll.icon())
-        menu.exec_(self.currTab.textBrowser.mapToGlobal(
+        qt_exec(menu, self.currTab.textBrowser.mapToGlobal(
             pos + QtCore.QPoint(self.currTab.textBrowser.lineNumbers.width(), 0)))
         del actions, menu
 
@@ -689,7 +713,7 @@ a.binary {{color:#69F}}
             menu.addAction(self.actionOpenWith)
             menu.addSeparator()
             menu.addAction(self.actionFileInfo)
-        menu.exec_(self.currTab.textEditor.mapToGlobal(pos))
+        qt_exec(menu, self.currTab.textEditor.mapToGlobal(pos))
         del actions, menu
 
     @Slot(QtCore.QPoint)
@@ -730,7 +754,7 @@ a.binary {{color:#69F}}
             self.actionRefreshTab.setEnabled(bool(self.tabWidget.widget(indexOfClickedTab).getCurrentPath()))
             self.actionDuplicateTab.setEnabled(True)
 
-        menu.exec_(self.tabWidget.mapToGlobal(pos))
+        qt_exec(menu, self.tabWidget.mapToGlobal(pos))
         del menu
         self.contextMenuPos = None
 
@@ -1110,10 +1134,10 @@ a.binary {{color:#69F}}
         startFilter = FILE_FILTER[tab.fileFormat]
         fd = FileDialog(self, "Open File(s)", self.lastOpenFileDir, FILE_FILTER, startFilter,
                         self.preferences['showHiddenFiles'])
-        fd.setFileMode(fd.ExistingFiles)
+        fd.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFiles)
         if path:
             fd.selectFile(path)
-        if fd.exec_() == fd.Accepted:
+        if qt_exec(fd) == QtWidgets.QDialog.DialogCode.Accepted:
             paths = fd.selectedFiles()
             if paths:
                 self.lastOpenFileDir = QtCore.QFileInfo(paths[0]).absoluteDir().path()
@@ -1261,9 +1285,9 @@ a.binary {{color:#69F}}
 
         dlg = FileDialog(self, "Save File As", path or self.lastOpenFileDir, FILE_FILTER, fileFilter,
                          self.preferences['showHiddenFiles'])
-        dlg.setAcceptMode(dlg.AcceptSave)
-        dlg.setFileMode(dlg.AnyFile)
-        if dlg.exec_() != dlg.Accepted:
+        dlg.setAcceptMode(QtWidgets.QFileDialog.AcceptMode.AcceptSave)
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
+        if qt_exec(dlg) != QtWidgets.QDialog.DialogCode.Accepted:
             return None, FILE_FORMAT_NONE
 
         filePaths = dlg.selectedFiles()
@@ -1313,8 +1337,8 @@ a.binary {{color:#69F}}
             dlg = QtWidgets.QMessageBox.question(
                 self, "Save File As",
                 "The file already exists. Are you sure you wish to overwrite it?\n{}".format(filePath),
-                QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Cancel)
-            if dlg != QtWidgets.QMessageBox.Save:
+                QtWidgets.QMessageBox.StandardButton.Save | QtWidgets.QMessageBox.StandardButton.Cancel)
+            if dlg != QtWidgets.QMessageBox.StandardButton.Save:
                 # Re-open this dialog to get a new path.
                 return self.getSaveAsPath(path, tab, selectedFilter)
 
@@ -1434,7 +1458,7 @@ a.binary {{color:#69F}}
         dlg = QtPrintSupport.QPrintDialog(self)
         if self.currTab.getCurrentTextWidget().textCursor().hasSelection():
             dlg.setOption(dlg.PrintSelection)
-        if dlg.exec_() == dlg.Accepted:
+        if qt_exec(dlg) == QtWidgets.QDialog.DialogCode.Accepted:
             self.currTab.getCurrentTextWidget().print_(dlg.printer())
 
     @Slot(bool)
@@ -1453,9 +1477,9 @@ a.binary {{color:#69F}}
         if self.currTab.getCurrentTextWidget().textCursor().hasSelection():
             # TODO: Is there a way to expose this as a toggle in the print
             # preview dialog, since it might not always be desired?
-            dlg.printer().setPrintRange(QtPrintSupport.QPrinter.Selection)
+            dlg.printer().setPrintRange(QtPrintSupport.QPrinter.PrintRange.Selection)
         dlg.paintRequested.connect(self.currTab.getCurrentTextWidget().print_)
-        dlg.exec_()
+        qt_exec(dlg)
 
     @Slot(bool)
     def closeTab(self, checked=False, index=None):
@@ -1899,7 +1923,7 @@ a.binary {{color:#69F}}
                 flags |= QtGui.QTextDocument.FindCaseSensitively
             doc = textWidget.document()
             cursor = QtGui.QTextCursor(doc)
-            lineColor = QtGui.QColor(QtCore.Qt.yellow)
+            lineColor = QtGui.QColor(QtCore.Qt.GlobalColor.yellow)
             count = 0
             while True:
                 cursor = doc.find(findText, cursor, flags)
@@ -2202,7 +2226,7 @@ a.binary {{color:#69F}}
         """ Open Preferences dialog """
         dlg = PreferencesDialog(self)
         # Open dialog.
-        if dlg.exec_() == dlg.Accepted:
+        if qt_exec(dlg) == QtWidgets.QDialog.DialogCode.Accepted:
             # Users currently have to refresh to see these changes.
             self.preferences['parseLinks'] = dlg.getPrefParseLinks()
             self.preferences['syntaxHighlighting'] = dlg.getPrefSyntaxHighlighting()
@@ -2426,7 +2450,7 @@ a.binary {{color:#69F}}
     def toggleFullScreen(self, *args):
         """ Toggle between full screen mode
         """
-        self.setWindowState(self.windowState() ^ QtCore.Qt.WindowFullScreen)
+        self.setWindowState(self.windowState() ^ QtCore.Qt.WindowState.WindowFullScreen)
 
     ###
     # History Menu Methods
@@ -2556,11 +2580,11 @@ a.binary {{color:#69F}}
 
         # Create dialog to display info.
         dlg = QtWidgets.QDialog(self)
-        dlg.setWindowIcon(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogInfoView))
+        dlg.setWindowIcon(self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogInfoView))
         dlg.setWindowTitle("File Information")
         layout = QtWidgets.QGridLayout(dlg)
         labelName = QtWidgets.QLabel("<b>{}</b>".format(info.fileName()))
-        labelName.setAlignment(QtCore.Qt.AlignCenter)
+        labelName.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(labelName, 0, 0, 1, 0)
         labelPath1 = QtWidgets.QLabel("Full path:")
         labelPath2 = QtWidgets.QLabel(QtCore.QDir.toNativeSeparators(path))
@@ -2573,12 +2597,13 @@ a.binary {{color:#69F}}
         labelModified1 = QtWidgets.QLabel("Modified:")
         labelModified2 = QtWidgets.QLabel(modified)
         # Set text interaction.
-        labelName.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        labelPath2.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        labelSize2.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        labelPermissions2.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        labelOwner2.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        labelModified2.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        text_selectable_by_mouse = QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        labelName.setTextInteractionFlags(text_selectable_by_mouse)
+        labelPath2.setTextInteractionFlags(text_selectable_by_mouse)
+        labelSize2.setTextInteractionFlags(text_selectable_by_mouse)
+        labelPermissions2.setTextInteractionFlags(text_selectable_by_mouse)
+        labelOwner2.setTextInteractionFlags(text_selectable_by_mouse)
+        labelModified2.setTextInteractionFlags(text_selectable_by_mouse)
         # Add to layout.
         layout.addWidget(labelPath1, 1, 0)
         layout.addWidget(labelPath2, 1, 1)
@@ -2590,10 +2615,10 @@ a.binary {{color:#69F}}
         layout.addWidget(labelOwner2, 4, 1)
         layout.addWidget(labelModified1, 5, 0)
         layout.addWidget(labelModified2, 5, 1)
-        btnBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok)
+        btnBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok)
         layout.addWidget(btnBox, 6, 0, 1, 0)
         btnBox.accepted.connect(dlg.accept)
-        dlg.exec_()
+        qt_exec(dlg)
 
     def getCommentStrings(self):
         """ Get the language-specific string(s) for a comment.
@@ -2670,7 +2695,7 @@ a.binary {{color:#69F}}
             "Please enter the program you would like to open this file with.\n\nYou may include command line options "
             "as well, and the file path will be appended to the end of the command.\n\nUse {} if the path needs to go "
             "in a specific place within the command.\n\nExample:\n    usdview --unloaded\n    ls {} -l\n",
-            QtWidgets.QLineEdit.Normal, self.preferences['lastOpenWithStr'])
+            QtWidgets.QLineEdit.EchoMode.Normal, self.preferences['lastOpenWithStr'])
         # Return if cancel was pressed or nothing entered.
         if not ok or not prog:
             return
@@ -2803,20 +2828,24 @@ a.binary {{color:#69F}}
         self.fileSystemWatcher.removePath(path)
 
         if QtCore.QFile.exists(path):
+            yes_button = QtWidgets.QMessageBox.StandardButton.Yes
+            no_button = QtWidgets.QMessageBox.StandardButton.No
             result = QtWidgets.QMessageBox.question(
                 self, "File Modified Externally",
                 "{} has been modified on disk. Would you like to reload it?".format(path),
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-            if result == QtWidgets.QMessageBox.Yes:
+                yes_button | no_button, no_button)
+            if result == yes_button:
                 return self.refreshTab()
             # TODO: If choosing not to reload, should we warn the user again if saving this file later?
             return False
         else:
+            save_button = QtWidgets.QMessageBox.StandardButton.Save
+            cancel_button = QtWidgets.QMessageBox.StandardButton.Cancel
             result = QtWidgets.QMessageBox.question(
                 self, "File Not Found",
                 "{} no longer exists. Another process may have moved or deleted it.".format(path),
-                QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Cancel, QtWidgets.QMessageBox.Save)
-            if result == QtWidgets.QMessageBox.Save:
+                save_button | cancel_button, save_button)
+            if result == save_button:
                 return self.saveTab()
             # If not saving, switch to Edit mode so you can save.
             # Make sure the tab appears as dirty so the user is prompted on exit to do so if they still haven't up to
@@ -2826,7 +2855,7 @@ a.binary {{color:#69F}}
             self.currTab.setDirty()
             return False
 
-    def setOverrideCursor(self, cursor=QtCore.Qt.WaitCursor):
+    def setOverrideCursor(self, cursor=QtCore.Qt.CursorShape.WaitCursor):
         """ Set the override cursor if it is not already set.
 
         :Parameters:
@@ -2843,7 +2872,7 @@ a.binary {{color:#69F}}
             QtWidgets.QApplication.restoreOverrideCursor()
 
     @contextmanager
-    def overrideCursor(self, cursor=QtCore.Qt.WaitCursor):
+    def overrideCursor(self, cursor=QtCore.Qt.CursorShape.WaitCursor):
         """ For use with the "with" keyword, so the override cursor is always
         restored via a try/finally block, even if the commands in-between fail.
 
@@ -3220,8 +3249,8 @@ a.binary {{color:#69F}}
                     self, "Large File",
                     "This file is {} and may be slow to load. Are you sure you want to continue?\n\n{}".format(
                         utils.humanReadableSize(size), info.absoluteFilePath()),
-                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-                return dlg == QtWidgets.QMessageBox.Yes
+                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+                return dlg == QtWidgets.QMessageBox.StandardButton.Yes
             finally:
                 self.setOverrideCursor()
         return True
@@ -3568,7 +3597,7 @@ a.binary {{color:#69F}}
         :Rtype:
             `int`
         """
-        return self.showWarningMessage(message, details, title, QtWidgets.QMessageBox.Critical)
+        return self.showWarningMessage(message, details, title, QtWidgets.QMessageBox.Icon.Critical)
 
     def showSuccessMessage(self, msg, title=None):
         """ Display a generic message if the user's preferences are not set to only show warnings/errors.
@@ -3580,10 +3609,11 @@ a.binary {{color:#69F}}
                 Optional title.
         """
         if self.preferences['showAllMessages']:
-            QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, title or self.windowTitle(), msg,
-                                  QtWidgets.QMessageBox.Ok, self).exec_()
+            msg_box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, title or self.windowTitle(), msg,
+                                            QtWidgets.QMessageBox.StandardButton.Ok, self)
+            qt_exec(msg_box)
 
-    def showWarningMessage(self, message, details=None, title=None, icon=QtWidgets.QMessageBox.Warning):
+    def showWarningMessage(self, message, details=None, title=None, icon=QtWidgets.QMessageBox.Icon.Warning):
         """ Show a warning message with optional details text (useful for tracebacks).
 
         :Parameters:
@@ -3602,11 +3632,12 @@ a.binary {{color:#69F}}
         """
         title = title or self.app.appDisplayName
         if details:
-            msgBox = QtWidgets.QMessageBox(icon, title, message, QtWidgets.QMessageBox.Ok, self)
-            msgBox.setDefaultButton(QtWidgets.QMessageBox.Ok)
-            msgBox.setEscapeButton(QtWidgets.QMessageBox.Ok)
+            ok_button = QtWidgets.QMessageBox.StandardButton.Ok
+            msgBox = QtWidgets.QMessageBox(icon, title, message, ok_button, self)
+            msgBox.setDefaultButton(ok_button)
+            msgBox.setEscapeButton(ok_button)
             msgBox.setDetailedText(details)
-            return msgBox.exec_()
+            return qt_exec(msgBox)
         return QtWidgets.QMessageBox.warning(self, title, message)
 
     @Slot(QtWidgets.QWidget, str, str, bool)
@@ -3655,15 +3686,17 @@ a.binary {{color:#69F}}
                 # dirty so it's easier to save as the new file. Don't prompt to close in this case.
                 # TODO: Is there a better way to track this?
                 return True
-            dlg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Warning, "Save File", "The document has been modified.",
-                                        QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard |
-                                        QtWidgets.QMessageBox.Cancel, self)
-            dlg.setDefaultButton(QtWidgets.QMessageBox.Save)
+            save_button = QtWidgets.QMessageBox.StandardButton.Save
+            cancel_button = QtWidgets.QMessageBox.StandardButton.Cancel
+            discard_button = QtWidgets.QMessageBox.StandardButton.Discard
+            dlg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Warning, "Save File", "The document has been modified.",
+                                        save_button | discard_button | cancel_button, self)
+            dlg.setDefaultButton(save_button)
             dlg.setInformativeText("Do you want to save your changes?")
-            btn = dlg.exec_()
-            if btn == QtWidgets.QMessageBox.Cancel:
+            btn = qt_exec(dlg)
+            if btn == cancel_button:
                 return False
-            elif btn == QtWidgets.QMessageBox.Save:
+            elif btn == save_button:
                 return self.saveTab(tab=tab)
             else:  # Discard
                 tab.setDirty(False)
@@ -3791,7 +3824,7 @@ class AddressBar(QtWidgets.QLineEdit):
         else:
             # Create a model to decode the data and get an item back out.
             model = QtGui.QStandardItemModel()
-            model.dropMimeData(event.mimeData(), QtCore.Qt.CopyAction, 0, 0, QtCore.QModelIndex())
+            model.dropMimeData(event.mimeData(), QtCore.Qt.DropAction.CopyAction, 0, 0, QtCore.QModelIndex())
             path = model.item(0, 2).text()
         self.setText(path)
         self.openFile.emit(path)
@@ -3863,8 +3896,8 @@ class TabBar(QtWidgets.QTabBar):
             e : `QtGui.QMouseEvent`
                 Mouse press event
         """
-        if e.button() & QtCore.Qt.LeftButton:
-            self.dragStartPos = e.pos()
+        if e.button() & QtCore.Qt.MouseButton.LeftButton:
+            self.dragStartPos = QtCompat.QMouseEvent.position(e).toPoint()
         QtWidgets.QTabBar.mousePressEvent(self, e)
 
     def mouseMoveEvent(self, e):
@@ -3874,16 +3907,17 @@ class TabBar(QtWidgets.QTabBar):
             e : `QtGui.QMouseEvent`
                 Mouse move event
         """
-        if not e.buttons() & QtCore.Qt.LeftButton:
+        if not e.buttons() & QtCore.Qt.MouseButton.LeftButton:
             return
         drag = QtGui.QDrag(self)
         drag.setPixmap(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp).pixmap(12, 12))
         mimeData = QtCore.QMimeData()
-        mimeData.setData("action", "moveTab")
-        # Set the source window index so we know which window the drag/drop came from.
-        mimeData.setData("window", str(self.currentWindowIndex()))
+        # Qt6 requires QByteArray for setData, Qt5 accepts string
+        mimeData.setData("action", QtCore.QByteArray(b"moveTab"))
+        # Set source window index so we know where drag/drop came from
+        mimeData.setData("window", QtCore.QByteArray(str(self.currentWindowIndex()).encode()))
         drag.setMimeData(mimeData)
-        drag.exec_()
+        qt_exec(drag)
 
     def dragEnterEvent(self, e):
         """ Drag enter event
@@ -3894,7 +3928,10 @@ class TabBar(QtWidgets.QTabBar):
         """
         mime = e.mimeData()
         formats = mime.formats()
-        if "action" in formats and "window" in formats and mime.data("action") == "moveTab":
+        # Qt6 returns QByteArray, Qt5 returns string. Convert to string for comparison
+        action_data = mime.data("action")
+        action_str = action_data.data().decode() if hasattr(action_data, 'data') else str(action_data)
+        if "action" in formats and "window" in formats and action_str == "moveTab":
             e.acceptProposedAction()
 
     def currentWindowIndex(self):
@@ -3916,7 +3953,17 @@ class TabBar(QtWidgets.QTabBar):
                 Drop event
         """
         mime = e.mimeData()
-        fromWindowIndex, ok = mime.data("window").toInt()
+        # Qt6 returns QByteArray, Qt5 returns string. Handle both cases.
+        window_data = mime.data("window")
+        if hasattr(window_data, 'data'):  # Qt6 QByteArray
+            window_str = window_data.data().decode()
+            try:
+                fromWindowIndex = int(window_str)
+                ok = True
+            except ValueError:
+                ok = False
+        else:  # Qt5 string
+            fromWindowIndex, ok = window_data.toInt()
         if not ok:
             logger.error("Failed to get int window index from TabBar drop event")
             e.ignore()
@@ -3924,7 +3971,7 @@ class TabBar(QtWidgets.QTabBar):
         fromWindow = self.window().app._windows[fromWindowIndex]
         fromTabBar = fromWindow.tabWidget.tabBar
         fromTabIndex = fromTabBar.tabAt(fromTabBar.dragStartPos)
-        toTabIndex = self.tabAt(e.pos())
+        toTabIndex = self.tabAt(QtCompat.QDropEvent.position(e).toPoint())
         toWindowIndex = self.currentWindowIndex()
 
         # Sanity check.
@@ -4025,7 +4072,7 @@ class TextBrowser(QtWidgets.QTextBrowser):
             clipboard = QtWidgets.QApplication.clipboard()
             if clipboard.supportsSelection():
                 selection = cursor.selectedText().replace(u'\u2029', '\n')
-                clipboard.setText(selection, clipboard.Selection)
+                clipboard.setText(selection, QtGui.QClipboard.Mode.Selection)
 
     def mousePressEvent(self, event):
         """ Store the starting mouse position so that on mouse release we can determine if it was an intentional mouse
@@ -4036,8 +4083,8 @@ class TextBrowser(QtWidgets.QTextBrowser):
                 Mouse press event
         """
         super(TextBrowser, self).mousePressEvent(event)
-        if event.button() == QtCore.Qt.LeftButton:
-            self._mouseStartPos = event.pos()
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self._mouseStartPos = QtCompat.QMouseEvent.position(event).toPoint()
 
     def mouseReleaseEvent(self, event):
         """ Add support for middle mouse button clicking of links.
@@ -4046,27 +4093,28 @@ class TextBrowser(QtWidgets.QTextBrowser):
             event : `QtGui.QMouseEvent`
                 Mouse release event
         """
-        link = self.anchorAt(event.pos())
+        event_pos = QtCompat.QMouseEvent.position(event).toPoint()
+        link = self.anchorAt(event_pos)
         if link:
             url = QtCore.QUrl(link)
             modifiers = event.modifiers()
-            if event.button() == QtCore.Qt.LeftButton:
+            if event.button() == QtCore.Qt.MouseButton.LeftButton:
                 # Only open the link if the user hasn't changed the selection of text while clicking.
                 # Allow moving an arbitrary leeway of 3 pixels during the click.
-                if (event.pos() - self._mouseStartPos).manhattanLength() <= 3:
-                    if modifiers == QtCore.Qt.NoModifier:
+                if (event_pos - self._mouseStartPos).manhattanLength() <= 3:
+                    if modifiers == QtCore.Qt.KeyboardModifier.NoModifier:
                         self.window().setSource(url)
-                    elif modifiers == QtCore.Qt.ControlModifier:
+                    elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
                         self.window().setSource(url, newTab=True, focus=False)
-                    elif modifiers == QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier:
+                    elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier | QtCore.Qt.KeyboardModifier.ShiftModifier:
                         self.window().setSource(url, newTab=True, focus=True)
-                    elif modifiers == QtCore.Qt.ShiftModifier:
+                    elif modifiers == QtCore.Qt.KeyboardModifier.ShiftModifier:
                         window = self.window().newWindow()
                         window.setSource(url)
                     return
-            elif event.button() & QtCore.Qt.MidButton:
+            elif event.button() & QtCore.Qt.MouseButton.MidButton:
                 # Don't focus on new tab unless Shift is used.
-                self.window().setSource(url, newTab=True, focus=modifiers & QtCore.Qt.ShiftModifier)
+                self.window().setSource(url, newTab=True, focus=modifiers & QtCore.Qt.KeyboardModifier.ShiftModifier)
                 return
         self.copySelectionToClipboard()
 
@@ -4111,8 +4159,8 @@ class TextEdit(QtWidgets.QPlainTextEdit):
             e : `QtGui.QKeyEvent`
                 Key press event
         """
-        if e.key() == QtCore.Qt.Key_Tab:
-            if e.modifiers() == QtCore.Qt.NoModifier:
+        if e.key() == QtCore.Qt.Key.Key_Tab:
+            if e.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
                 if self.textCursor().hasSelection():
                     self.indentText()
                     return
@@ -4121,20 +4169,19 @@ class TextEdit(QtWidgets.QPlainTextEdit):
                     # Otherwise, QTextEdit/QPlainTextEdit already handle inserting the tab character.
                     self.insertPlainText(" " * self.tabSpaces)
                     return
-        elif e.key() == QtCore.Qt.Key_Backtab and e.modifiers() == QtCore.Qt.ShiftModifier:
+        elif e.key() == QtCore.Qt.Key.Key_Backtab and e.modifiers() == QtCore.Qt.KeyboardModifier.ShiftModifier:
             self.unindentText()
             return
-        elif e.key() == QtCore.Qt.Key_Return and self.autoIndent:
+        elif e.key() == QtCore.Qt.Key.Key_Return and self.autoIndent:
             cursor = self.textCursor()
             cursor.beginEditBlock()
             cursor.insertText("\n")
             # Copy indent by moving up a line and to the next word
-            cursor.movePosition(cursor.Up)
-            cursor.movePosition(cursor.NextWord, cursor.KeepAnchor)
+            cursor.movePosition(QtGui.QTextCursor.Up)
+            cursor.movePosition(QtGui.QTextCursor.NextWord, QtGui.QTextCursor.KeepAnchor)
             indent = cursor.selectedText()
-            # Don't insert indents that aren't only tabs and/or spaces
-            if QtCore.QRegExp("[\t ]*").exactMatch(indent):
-                cursor.movePosition(cursor.Down)
+            if indent.strip("\t ") == "":
+                cursor.movePosition(QtGui.QTextCursor.Down)
                 cursor.insertText(indent)
             cursor.endEditBlock()
             return
@@ -4159,7 +4206,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
         end = cursor.selectionEnd()
         commentLen = len(commentStart)
         cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
+        cursor.movePosition(QtGui.QTextCursor.StartOfBlock)
         cursor.beginEditBlock()
 
         if not commentEnd:
@@ -4169,7 +4216,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
                 # For every character we insert, increment the end position.
                 end += commentLen
                 prevBlock = cursor.blockNumber()
-                cursor.movePosition(cursor.NextBlock)
+                cursor.movePosition(QtGui.QTextCursor.NextBlock)
 
                 # I think I have a bug in my code if I have to do this.
                 if prevBlock == cursor.blockNumber():
@@ -4179,7 +4226,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
             # be a multiple-line comment.
             cursor.insertText(commentStart)
             cursor.setPosition(end)
-            cursor.movePosition(cursor.EndOfBlock)
+            cursor.movePosition(QtGui.QTextCursor.EndOfBlock)
             cursor.insertText(commentEnd)
         cursor.endEditBlock()
 
@@ -4198,7 +4245,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
         end = cursor.selectionEnd()
         commentLen = len(commentStart)
         cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
+        cursor.movePosition(QtGui.QTextCursor.StartOfBlock)
         cursor.beginEditBlock()
         if not commentEnd:
             # Modify all blocks between selectionStart and selectionEnd
@@ -4206,13 +4253,13 @@ class TextEdit(QtWidgets.QPlainTextEdit):
                 block = cursor.block()
                 # Select the number of characters used in the comment string.
                 for _ in range(len(commentStart)):
-                    cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
+                    cursor.movePosition(QtGui.QTextCursor.NextCharacter, QtGui.QTextCursor.KeepAnchor)
                 # If the selection is all on the same line and matches the comment string, remove it.
                 if block.contains(cursor.selectionEnd()) and cursor.selectedText() == commentStart:
                     cursor.deleteChar()
                     end -= commentLen
                 prevBlock = cursor.blockNumber()
-                cursor.movePosition(cursor.NextBlock)
+                cursor.movePosition(QtGui.QTextCursor.NextBlock)
                 if prevBlock == cursor.blockNumber():
                     break
         else:
@@ -4223,16 +4270,16 @@ class TextEdit(QtWidgets.QPlainTextEdit):
             block = cursor.block()
             # Select the number of characters used in the comment string.
             for _ in range(len(commentStart)):
-                cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
+                cursor.movePosition(QtGui.QTextCursor.NextCharacter, QtGui.QTextCursor.KeepAnchor)
             # If the selection is all on the same line and matches the comment string, remove it.
             if block.contains(cursor.selectionEnd()) and cursor.selectedText() == commentStart:
                 cursor.deleteChar()
             # Remove the end comment string.
             cursor.setPosition(end - len(commentStart))
             block = cursor.block()
-            cursor.movePosition(cursor.EndOfBlock)
+            cursor.movePosition(QtGui.QTextCursor.EndOfBlock)
             for _ in range(len(commentEnd)):
-                cursor.movePosition(cursor.PreviousCharacter, cursor.KeepAnchor)
+                cursor.movePosition(QtGui.QTextCursor.PreviousCharacter, QtGui.QTextCursor.KeepAnchor)
             if block.contains(cursor.selectionStart()) and cursor.selectedText() == commentEnd:
                 cursor.deleteChar()
         cursor.endEditBlock()
@@ -4244,7 +4291,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
         start = cursor.selectionStart()
         end = cursor.selectionEnd()
         cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
+        cursor.movePosition(QtGui.QTextCursor.StartOfBlock)
         cursor.beginEditBlock()
         # Modify all blocks between selectionStart and selectionEnd
         while cursor.position() < end and not cursor.atEnd():
@@ -4257,7 +4304,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
                 cursor.insertText("\t")
                 end += 1
             prevBlock = cursor.blockNumber()
-            cursor.movePosition(cursor.NextBlock)
+            cursor.movePosition(QtGui.QTextCursor.NextBlock)
             if prevBlock == cursor.blockNumber():
                 break
         cursor.endEditBlock()
@@ -4269,14 +4316,14 @@ class TextEdit(QtWidgets.QPlainTextEdit):
         start = cursor.selectionStart()
         end = cursor.selectionEnd()
         cursor.setPosition(start)
-        cursor.movePosition(cursor.StartOfBlock)
+        cursor.movePosition(QtGui.QTextCursor.StartOfBlock)
         cursor.beginEditBlock()
         # Modify all blocks between selectionStart and selectionEnd
         while cursor.position() < end and not cursor.atEnd():
             currBlock = cursor.blockNumber()
 
             for _ in range(self.tabSpaces):
-                cursor.movePosition(cursor.NextCharacter, cursor.KeepAnchor)
+                cursor.movePosition(QtGui.QTextCursor.NextCharacter, QtGui.QTextCursor.KeepAnchor)
                 if cursor.selectedText() == " ":
                     cursor.deleteChar()
                     end -= 1
@@ -4296,7 +4343,7 @@ class TextEdit(QtWidgets.QPlainTextEdit):
                     break
             else:
                 # We already moved to the next block.
-                cursor.movePosition(cursor.StartOfLine, cursor.MoveAnchor)
+                cursor.movePosition(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.MoveAnchor)
         cursor.endEditBlock()
 
     def zoomIn(self, adjust=1):
@@ -4374,7 +4421,7 @@ class BrowserTab(QtWidgets.QWidget):
 
         # Text browser.
         self.textBrowser = TextBrowser(self)
-        self.textBrowser.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.textBrowser.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.textBrowser.setFont(font)
         # Don't let the browser handle links, since we have our own, special handling.
         # TODO: Should we do a file:// URL handler instead?
@@ -4383,9 +4430,9 @@ class BrowserTab(QtWidgets.QWidget):
 
         # Text editor.
         self.textEditor = TextEdit(self)
-        self.textEditor.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.textEditor.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.textEditor.setFont(font)
-        self.textEditor.setLineWrapMode(self.textEditor.NoWrap)
+        self.textEditor.setLineWrapMode(self.textEditor.LineWrapMode.NoWrap)
         self.textEditor.setVisible(self.inEditMode)
         self.setIndentSettings(prefs['useSpaces'], prefs['tabSpaces'], prefs['autoIndent'])
         self.textEditor.document().modificationChanged.connect(self.setDirty)
@@ -4444,7 +4491,7 @@ class BrowserTab(QtWidgets.QWidget):
         else:
             # Create a model to decode the data and get an item back out.
             model = QtGui.QStandardItemModel()
-            model.dropMimeData(event.mimeData(), QtCore.Qt.CopyAction, 0, 0, QtCore.QModelIndex())
+            model.dropMimeData(event.mimeData(), QtCore.Qt.DropAction.CopyAction, 0, 0, QtCore.QModelIndex())
             path = model.item(0, 2).text()
         self.openFile.emit(path)
 
@@ -4689,8 +4736,8 @@ class BrowserTab(QtWidgets.QWidget):
         """
         font = self.parent().font()
         width = int(tabSpaces * QtGui.QFontMetricsF(font).averageCharWidth())
-        self.textBrowser.setTabStopWidth(width)
-        self.textEditor.setTabStopWidth(width)
+        self.textBrowser.setTabStopDistance(width)
+        self.textEditor.setTabStopDistance(width)
         self.textEditor.tabSpaces = tabSpaces
         self.textEditor.useSpaces = useSpaces
         self.textEditor.autoIndent = autoIndent
@@ -4827,7 +4874,7 @@ class App(QtCore.QObject):
         # Avoid the following with PySide2: "Qt WebEngine seems to be initialized from a plugin. Please set
         # Qt::AA_ShareOpenGLContexts using QCoreApplication::setAttribute before constructing QGuiApplication."
         if Qt.IsPySide2:
-            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
+            QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
         self.app = QtWidgets.QApplication(sys.argv)
         self.app.setApplicationName(self.appName)
         self.app.setWindowIcon(QtGui.QIcon(":images/images/logo.png"))
@@ -4975,7 +5022,7 @@ class App(QtCore.QObject):
             timer.start(500)
             timer.timeout.connect(lambda: None)
 
-            self.app.exec_()
+            qt_exec(self.app)
 
     @Slot()
     def onExit(self):

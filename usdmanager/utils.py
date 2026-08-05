@@ -256,7 +256,7 @@ def findModules(subdir):
         `list`
     """
     modules = []
-    pluginPath = str(files(__name__).joinpath(subdir))
+    pluginPath = str(files(__package__).joinpath(subdir))
     logger.info("Searching for *.py plugins in %s", pluginPath)
     for f in glob(os.path.join(pluginPath, "*.py")):
         moduleName = os.path.splitext(os.path.basename(f))[0]
@@ -600,7 +600,7 @@ def loadUiWidget(path, parent=None, source_path=None):
     if not os.path.exists(path) and not os.path.isabs(path):
         # Assume the .ui file lives in this directory.
         if source_path is None:
-            path = str(files(__name__).joinpath(path))
+            path = str(files(__package__).joinpath(path))
         else:
             path = os.path.join(os.path.dirname(os.path.realpath(source_path)), path)
     ui = QtCompat.loadUi(path, parent)
@@ -613,7 +613,7 @@ def loadUiWidget(path, parent=None, source_path=None):
 
 
 @contextmanager
-def overrideCursor(cursor=QtCore.Qt.WaitCursor):
+def overrideCursor(cursor=QtCore.Qt.CursorShape.WaitCursor):
     """ For use with the "with" keyword, so the override cursor is always
     restored via a try/finally block, even if the commands in-between fail.
     
@@ -648,10 +648,10 @@ def queryItemValue(url, key, default=None):
     """
     if url.hasQuery():
         query = url.toString().split("?", 1)[1]
-        for item in query.split(url.queryPairDelimiter()):
+        for item in query.split("&"):
             if item:
                 try:
-                    k, v = item.split(url.queryValueDelimiter())
+                    k, v = item.split("=", 1)
                 except ValueError:
                     logger.error("Invalid query string: %s", query)
                 else:

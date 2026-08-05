@@ -32,15 +32,15 @@ class MasterXMLHighlighter(MasterHighlighter):
             [   # XML element. Since we can't do a look behind in Qt to check for < or </, put this before the <>
                 # symbols for tags get colored.
                 r"</?\w+",
-                QtCore.Qt.darkRed,
-                QtCore.Qt.red
+                QtCore.Qt.GlobalColor.darkRed,
+                QtCore.Qt.GlobalColor.red
             ],
             [
                 # XML symbols
                 r"(?:/>|\?>|>|</?|<\?xml\b)",
                 #(?:/>|\?>|<(?:/|\?xml)?)\\b)",
-                QtCore.Qt.darkMagenta,
-                QtCore.Qt.magenta,
+                QtCore.Qt.GlobalColor.darkMagenta,
+                QtCore.Qt.GlobalColor.magenta,
                 QtGui.QFont.Bold
             ],
             [   # XML attribute

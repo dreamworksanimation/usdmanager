@@ -84,11 +84,11 @@ class IncludePanel(QtWidgets.QWidget):
         self.buttonOpen.setToolTip("Open selected file")
         
         # Focus policies.
-        self.lookInCombo.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.toParentButton.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.buttonHome.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.buttonOriginal.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.buttonOpen.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.lookInCombo.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.toParentButton.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.buttonHome.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.buttonOriginal.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.buttonOpen.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         
         # Item size policies.
         self.lookInCombo.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
@@ -116,15 +116,15 @@ class IncludePanel(QtWidgets.QWidget):
         self.include4Layout = QtWidgets.QGridLayout()
         self.include4Layout.setContentsMargins(0, 0, 0, 0)
         self.include4Layout.setSpacing(5)
-        self.include4Layout.addWidget(self.fileNameLabel, 0, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        self.include4Layout.addWidget(self.fileNameLabel, 0, 0, QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.include4Layout.addWidget(self.fileNameEdit, 0, 1)
-        self.include4Layout.addWidget(self.fileTypeLabel, 1, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        self.include4Layout.addWidget(self.fileTypeLabel, 1, 0, QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.include4Layout.addWidget(self.fileTypeCombo, 1, 1)
         self.include4Layout.addWidget(self.fileTypeLabelFiller, 2, 0)
         self.include4Layout.addWidget(self.fileTypeComboFiller, 2, 1)
         
         self.include5Layout = QtWidgets.QHBoxLayout()
-        self.include5Layout.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.include5Layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.include5Layout.setContentsMargins(0, 0, 0, 0)
         self.include5Layout.setSpacing(5)
         self.include5Layout.addWidget(self.buttonOriginal)
@@ -159,19 +159,20 @@ class IncludePanel(QtWidgets.QWidget):
         
         self.listView.setModel(self.fileModel)
         
-        self.listView.activated[QtCore.QModelIndex].connect(self.enterDirectory)
+        self.listView.activated.connect(self.enterDirectory)
         
         # Set selection mode and behavior.
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.listView.setWrapping(False)
-        self.listView.setResizeMode(QtWidgets.QListView.Adjust)
+        
+        self.listView.setResizeMode(QtWidgets.QListView.ResizeMode.Adjust)
         
         selectionMode = QtWidgets.QAbstractItemView.SingleSelection
         self.listView.setSelectionMode(selectionMode)
         
         # Setup the completer.
         completer = QtWidgets.QCompleter(self.fileModel, self.fileNameEdit)
-        completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        completer.setCaseSensitivity(QtCore.Qt.CaseSensitivity.CaseInsensitive)
         self.fileNameEdit.setCompleter(completer)
         self.fileNameEdit.textChanged.connect(self.autoCompleteFileName)
         self.fileNameEdit.returnPressed.connect(self.accept)
@@ -381,7 +382,7 @@ class IncludePanel(QtWidgets.QWidget):
         if index.isValid():
             self.listView.selectionModel().select(index,
                 QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows)
-            self.listView.scrollTo(index, self.listView.EnsureVisible)
+            self.listView.scrollTo(index, QtWidgets.QAbstractItemView.ScrollHint.EnsureVisible)
         return index
     
     @Slot(QtCore.QItemSelection, QtCore.QItemSelection)
