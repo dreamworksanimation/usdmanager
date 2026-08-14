@@ -16,11 +16,9 @@ have not been as heavily tested. Notes to help with installation on specific ope
 - [Common Problems](#common-problems)
 
 ## Prerequisites
-- Install Python 2 ([https://www.python.org/downloads/](https://www.python.org/downloads/)), or 3 if on the python3 branch.
+- Install Python 3 ([https://www.python.org/downloads/](https://www.python.org/downloads/)).
   * **Windows:** Ensure the install location is part of your PATH variable (newer installs should have an option for this)
-- Install one of the recommended Python Qt bindings
-  * **Python 2:** PyQt4 or PySide
-  * **Python 3:** PyQt5 or PySide2, example:
+- Install one of the recommended Python Qt bindings: PySide6, PyQt5 or PySide2. For example:
     ```
     pip install PySide2
     ```
@@ -69,7 +67,7 @@ and this will depend on your setup.py install settings.
 3. Customize usdmanager/config.json if needed.
 4. Run ```python setup.py install``` (may need the ```--user``` flag)
 
-If setup.py complains about missing setuptools, you can install it via pip. If you installed a new enough python version, pip should already be handled for you, but you may still need to add it to your PATH. pip should already live somewhere like this (C:\Python27\Scripts\pip.exe or C:\Users\username\AppData\Local\Microsoft\WindowsApps\pip.exe), but if needed, you can permanently add it to your environment with this (adjusting the path as needed): ```setx PATH "%PATH%;C:\Python27\Scripts"```
+If setup.py complains about missing setuptools, you can install it via pip. pip should already be handled for you, but you may still need to add it to your PATH. pip should already live somewhere like this (C:\Python37\Scripts\pip.exe or C:\Users\username\AppData\Local\Microsoft\WindowsApps\pip.exe), but if needed, you can permanently add it to your environment with this (adjusting the path as needed): ```setx PATH "%PATH%;C:\Python37\Scripts"```
 
 1. Upgrade pip if needed
  1. Launch Command Prompt in Administrator mode
@@ -77,7 +75,7 @@ If setup.py complains about missing setuptools, you can install it via pip. If y
 2. Install setuptools if needed
  1. Run ```pip install setuptools```
 3. Re-run the setup.py step above for usdmanager
-4. If you don't modify your path, you should now be able to run something like this to launch the program: ```python C:\Python27\Scripts\usdmanager``` or from the install directory itself, e.g. ``` python .\build\scripts-3.8\usdmanager```
+4. If you don't modify your path, you should now be able to run something like this to launch the program: ```python C:\Python37\Scripts\usdmanager``` or from the install directory itself, e.g. ``` python .\build\scripts-3.8\usdmanager```
 
 #### Known Issues
 - Since this is not installed as an entirely self-contained package, the application name (and icon) will by Python, not USD Manager.

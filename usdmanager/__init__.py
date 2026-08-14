@@ -67,11 +67,7 @@ try:
 except ImportError:
     # Fallback shim for Python < 3.9
     # pkg_resources is removed in setuptools 82.0.0
-    try:
-        from pathlib import Path
-    except ImportError:
-        # Python 2.7 requires pathlib2
-        from pathlib2 import Path
+    from pathlib import Path
     from pkg_resources import resource_filename
     def files(package):
         return Path(resource_filename(package, ""))
@@ -3510,14 +3506,10 @@ a.binary {{color:#69F}}
         """
         if not isinstance(command, list):
             if '{}' in command:
-                try:
-                    quote = shlex.quote  # Python 3.3+ (shlex is already imported)
-                except AttributeError:
-                    from pipes import quote  # Deprecated since python 2.7
                 if isinstance(path, list):
-                    path = subprocess.list2cmdline(quote(x) for x in path)
+                    path = subprocess.list2cmdline(shlex.quote(x) for x in path)
                 try:
-                    command = command.format(quote(path))
+                    command = command.format(shlex.quote(path))
                 except IndexError as e:
                     self.showCriticalMessage("Invalid command: {}. If using curly brackets, please ensure there is only "
                                             "one set.".format(e), details="Command: {}\nPath: {}".format(command, path))

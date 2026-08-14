@@ -36,11 +36,7 @@ try:
 except ImportError:
     # Fallback shim for Python < 3.9
     # pkg_resources is removed in setuptools 82.0.0
-    try:
-        from pathlib import Path
-    except ImportError:
-        # Python 2.7 requires pathlib2
-        from pathlib2 import Path
+    from pathlib import Path
     from pkg_resources import resource_filename
     def files(package):
         return Path(resource_filename(package, ""))
