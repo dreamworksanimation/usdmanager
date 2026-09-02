@@ -370,7 +370,7 @@ class UsdMngrWindow(QtWidgets.QMainWindow):
 
             # Change some more stuff that the stylesheet doesn't catch.
             p = QtWidgets.QApplication.palette()
-            p.setColor(p.Link, QtGui.QColor(0, 205, 250))
+            p.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(0, 205, 250))
             QtWidgets.QApplication.setPalette(p)
 
             # Redefine some colors for the dark theme.
